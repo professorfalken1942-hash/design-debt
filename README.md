@@ -33,6 +33,17 @@ npm run dev
 Web: `http://localhost:4200`  
 API: `http://localhost:4310`
 
+## Vercel Deployment
+
+The web app calls the API through same-origin `/api/*` routes. Vercel serves those routes from `api/[...path].ts`, which imports the Express app without starting a long-running server.
+
+Required Vercel environment variables:
+
+- `DATABASE_URL`
+- `WEB_ORIGIN` set to the production site origin
+
+The API workspace runs `prisma generate` before TypeScript builds so fresh Vercel installs have the correct Prisma client.
+
 ## Database
 
 PostgreSQL runs via Docker Compose on port `5437`.

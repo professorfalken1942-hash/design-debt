@@ -99,38 +99,40 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
             <span class="badge">Sortable inventory</span>
           </div>
 
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Value</th>
-                <th>Uses</th>
-                <th>Pages</th>
-                <th>Examples</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of items(); track item.normalizedValue) {
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
                 <tr>
-                  <td>
-                    @if (activeCategory() === 'colors') {
-                      <span class="swatch" [style.background]="item.normalizedValue"></span>
-                    }
-                    <strong style="margin-left:.5rem;">{{ item.normalizedValue }}</strong>
-                  </td>
-                  <td>{{ item.count }}</td>
-                  <td>{{ item.pages.length }}</td>
-                  <td>
-                    @for (example of item.examples.slice(0, 3); track example.pageUrl + example.selector) {
-                      <div class="compact-example">
-                        <strong>{{ example.selector ?? example.tagName }}</strong>
-                        <span>{{ example.pageUrl }}</span>
-                      </div>
-                    }
-                  </td>
+                  <th>Value</th>
+                  <th>Uses</th>
+                  <th>Pages</th>
+                  <th>Examples</th>
                 </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (item of items(); track item.normalizedValue) {
+                  <tr>
+                    <td data-label="Value">
+                      @if (activeCategory() === 'colors') {
+                        <span class="swatch" [style.background]="item.normalizedValue"></span>
+                      }
+                      <strong style="margin-left:.5rem;">{{ item.normalizedValue }}</strong>
+                    </td>
+                    <td data-label="Uses">{{ item.count }}</td>
+                    <td data-label="Pages">{{ item.pages.length }}</td>
+                    <td data-label="Examples">
+                      @for (example of item.examples.slice(0, 3); track example.pageUrl + example.selector) {
+                        <div class="compact-example">
+                          <strong>{{ example.selector ?? example.tagName }}</strong>
+                          <span>{{ example.pageUrl }}</span>
+                        </div>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </section>
       }
     </section>

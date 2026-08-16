@@ -2,7 +2,7 @@ import { HttpClient } from "@angular/common/http";
 import { Injectable, computed, inject, signal } from "@angular/core";
 import type { DesignDebtResults, ScanSummary, TokenProposal } from "@designdebt/shared";
 
-const API_BASE = "http://localhost:4310/api";
+const API_BASE = "/api";
 
 @Injectable({ providedIn: "root" })
 export class ApiService {

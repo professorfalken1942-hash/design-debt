@@ -36,28 +36,30 @@ import { ApiService } from "../../core/api.service";
             <button class="button primary" type="button" (click)="loadDemo()">Load demo scan</button>
           </div>
         } @else {
-          <table class="table">
-            <thead><tr><th>URL</th><th>Status</th><th>Progress</th><th>Pages</th><th>Warnings</th><th>Score</th><th></th></tr></thead>
-            <tbody>
-              @for (scan of scans(); track scan.id) {
-                <tr>
-                  <td>
-                    <strong>{{ scan.rootUrl }}</strong>
-                    <div style="color:var(--muted); margin-top:.25rem;">{{ formatDate(scan.createdAt) }}</div>
-                  </td>
-                  <td><span class="badge" [class]="scan.status">{{ scan.status }}</span></td>
-                  <td style="min-width:9rem;">
-                    <div class="progress"><span [style.width.%]="scan.progress"></span></div>
-                    <div style="color:var(--muted); margin-top:.35rem;">{{ scan.progress }}%</div>
-                  </td>
-                  <td>{{ scan.pageCount }}</td>
-                  <td>{{ scan.warnings?.length ?? 0 }}</td>
-                  <td>{{ scan.healthScore ?? '-' }}</td>
-                  <td><a class="button secondary" [routerLink]="['/scans', scan.id]">Open</a></td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>URL</th><th>Status</th><th>Progress</th><th>Pages</th><th>Warnings</th><th>Score</th><th></th></tr></thead>
+              <tbody>
+                @for (scan of scans(); track scan.id) {
+                  <tr>
+                    <td data-label="URL">
+                      <strong>{{ scan.rootUrl }}</strong>
+                      <div style="color:var(--muted); margin-top:.25rem;">{{ formatDate(scan.createdAt) }}</div>
+                    </td>
+                    <td data-label="Status"><span class="badge" [class]="scan.status">{{ scan.status }}</span></td>
+                    <td data-label="Progress" style="min-width:9rem;">
+                      <div class="progress"><span [style.width.%]="scan.progress"></span></div>
+                      <div style="color:var(--muted); margin-top:.35rem;">{{ scan.progress }}%</div>
+                    </td>
+                    <td data-label="Pages">{{ scan.pageCount }}</td>
+                    <td data-label="Warnings">{{ scan.warnings?.length ?? 0 }}</td>
+                    <td data-label="Score">{{ scan.healthScore ?? '-' }}</td>
+                    <td data-label="Action"><a class="button secondary" [routerLink]="['/scans', scan.id]">Open</a></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         }
       </section>
     </section>

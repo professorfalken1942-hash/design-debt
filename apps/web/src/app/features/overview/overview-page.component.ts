@@ -21,12 +21,12 @@ import { ApiService } from "../../core/api.service";
           and opportunities for token consolidation.
         </p>
 
-        <form (ngSubmit)="startScan()" class="grid" style="grid-template-columns: minmax(0, 1fr) 12rem auto; margin-top: 2rem;">
-          <label>
+        <form (ngSubmit)="startScan()" class="scan-form">
+          <label class="field url-field">
             <span class="eyebrow" style="margin-bottom: .4rem;">Website URL</span>
             <input class="input" name="url" [(ngModel)]="url" placeholder="https://example.com" />
           </label>
-          <label>
+          <label class="field pages-field">
             <span class="eyebrow" style="margin-bottom: .4rem;">Max pages</span>
             <input class="input" name="maxPages" type="number" min="1" max="50" [(ngModel)]="maxPages" />
           </label>
@@ -43,7 +43,7 @@ import { ApiService } from "../../core/api.service";
 
       @if (api.activeScan()) {
         <section class="section panel" style="padding: 1rem;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem;">
+          <div class="section-title">
             <div>
               <p class="eyebrow">Current scan</p>
               <h2 style="margin:.2rem 0 0;">{{ api.activeScan()?.rootUrl }}</h2>
@@ -80,24 +80,26 @@ import { ApiService } from "../../core/api.service";
         </section>
 
         <section class="section panel" style="padding:1rem;">
-          <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div class="section-title">
             <div>
               <p class="eyebrow">Highest-impact findings</p>
               <h2 style="margin:0;">Suggestions to review first</h2>
             </div>
             <a class="button secondary" routerLink="/design-debt">Open Design Debt</a>
           </div>
-          <table class="table" style="margin-top:1rem;">
-            <tbody>
-              @for (finding of results.findings; track finding.id) {
-                <tr>
-                  <td><strong>{{ finding.title }}</strong><br><span style="color:var(--muted);">{{ finding.description }}</span></td>
-                  <td>{{ finding.count }}</td>
-                  <td><a [routerLink]="['/design-debt', finding.targetView]">View</a></td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table" style="margin-top:1rem;">
+              <tbody>
+                @for (finding of results.findings; track finding.id) {
+                  <tr>
+                    <td data-label="Finding"><strong>{{ finding.title }}</strong><br><span style="color:var(--muted);">{{ finding.description }}</span></td>
+                    <td data-label="Count">{{ finding.count }}</td>
+                    <td data-label="Action"><a [routerLink]="['/design-debt', finding.targetView]">View</a></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </section>
       }
     </section>

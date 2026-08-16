@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx -p node@22.22.3 node ../../node_modules/@angular/cli/bin/ng.js serve --host 0.0.0.0 --port 4200",
+    "dev": "npx -p node@22.22.3 node ../../node_modules/@angular/cli/bin/ng.js serve --host 0.0.0.0 --port 4200 --proxy-config proxy.conf.json",
     "build": "npx -p node@22.22.3 node ../../node_modules/@angular/cli/bin/ng.js build",
     "test": "echo \"No web unit tests configured yet\""
   },

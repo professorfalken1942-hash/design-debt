@@ -76,49 +76,53 @@ import { ApiService } from "../../core/api.service";
 
         <section class="section panel" style="padding:1rem;">
           <p class="eyebrow">Primitive tokens</p>
-          <table class="table">
-            <thead><tr><th>Token</th><th>Value</th><th>Uses</th><th>Rationale</th><th>Status</th></tr></thead>
-            <tbody>
-              @for (token of primitiveTokens(); track token.id) {
-                <tr>
-                  <td><input class="input" [(ngModel)]="token.name" /></td>
-                  <td><input class="input" [(ngModel)]="token.value" /></td>
-                  <td>{{ token.uses }}</td>
-                  <td><p class="token-rationale">{{ rationale(token) }}</p></td>
-                  <td>
-                    <div style="display:flex; gap:.45rem; flex-wrap:wrap;">
-                      <button class="button secondary" type="button" (click)="setStatus(token, 'enabled')">Approve</button>
-                      <button class="button secondary" type="button" (click)="setStatus(token, 'disabled')">Disable</button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Token</th><th>Value</th><th>Uses</th><th>Rationale</th><th>Status</th></tr></thead>
+              <tbody>
+                @for (token of primitiveTokens(); track token.id) {
+                  <tr>
+                    <td data-label="Token"><input class="input" [(ngModel)]="token.name" /></td>
+                    <td data-label="Value"><input class="input" [(ngModel)]="token.value" /></td>
+                    <td data-label="Uses">{{ token.uses }}</td>
+                    <td data-label="Rationale"><p class="token-rationale">{{ rationale(token) }}</p></td>
+                    <td data-label="Status">
+                      <div style="display:flex; gap:.45rem; flex-wrap:wrap;">
+                        <button class="button secondary" type="button" (click)="setStatus(token, 'enabled')">Approve</button>
+                        <button class="button secondary" type="button" (click)="setStatus(token, 'disabled')">Disable</button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="section panel" style="padding:1rem;">
           <p class="eyebrow">Semantic tokens</p>
-          <table class="table">
-            <thead><tr><th>Semantic role</th><th>Primitive</th><th>Confidence</th><th>Rationale</th><th>Status</th></tr></thead>
-            <tbody>
-              @for (token of semanticTokens(); track token.id) {
-                <tr>
-                  <td><input class="input" [(ngModel)]="token.name" /></td>
-                  <td><input class="input" [(ngModel)]="token.value" /></td>
-                  <td>{{ token.confidence ?? 'low' }}</td>
-                  <td><p class="token-rationale">{{ rationale(token) }}</p></td>
-                  <td>
-                    <div style="display:flex; gap:.45rem; flex-wrap:wrap;">
-                      <button class="button secondary" type="button" (click)="setStatus(token, 'enabled')">Approve</button>
-                      <button class="button secondary" type="button" (click)="setStatus(token, 'needs-review')">Review</button>
-                      <button class="button secondary" type="button" (click)="setStatus(token, 'disabled')">Disable</button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Semantic role</th><th>Primitive</th><th>Confidence</th><th>Rationale</th><th>Status</th></tr></thead>
+              <tbody>
+                @for (token of semanticTokens(); track token.id) {
+                  <tr>
+                    <td data-label="Semantic role"><input class="input" [(ngModel)]="token.name" /></td>
+                    <td data-label="Primitive"><input class="input" [(ngModel)]="token.value" /></td>
+                    <td data-label="Confidence">{{ token.confidence ?? 'low' }}</td>
+                    <td data-label="Rationale"><p class="token-rationale">{{ rationale(token) }}</p></td>
+                    <td data-label="Status">
+                      <div style="display:flex; gap:.45rem; flex-wrap:wrap;">
+                        <button class="button secondary" type="button" (click)="setStatus(token, 'enabled')">Approve</button>
+                        <button class="button secondary" type="button" (click)="setStatus(token, 'needs-review')">Review</button>
+                        <button class="button secondary" type="button" (click)="setStatus(token, 'disabled')">Disable</button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="section panel" style="padding:1rem;">

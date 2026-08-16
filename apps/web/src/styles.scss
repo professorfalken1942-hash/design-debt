@@ -116,6 +116,7 @@ textarea {
 .page {
   margin: 0 auto;
   max-width: 1180px;
+  min-width: 0;
 }
 
 .topbar {
@@ -141,6 +142,7 @@ textarea {
   line-height: 0.95;
   margin: 0;
   max-width: 12ch;
+  overflow-wrap: anywhere;
 }
 
 .lede {
@@ -166,9 +168,23 @@ textarea {
   gap: 1rem;
 }
 
+.scan-form {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 12rem) auto;
+  margin-top: 2rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
   gap: 0.8rem;
 }
 
@@ -208,8 +224,11 @@ textarea {
   gap: 0.5rem;
   justify-content: center;
   min-height: 2.65rem;
+  min-width: 0;
   padding: 0 1rem;
   text-decoration: none;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .button.primary {
@@ -231,6 +250,7 @@ textarea {
   border-radius: var(--radius);
   background: rgba(8, 11, 18, 0.72);
   color: var(--text);
+  min-width: 0;
   padding: 0 0.9rem;
 }
 
@@ -270,7 +290,14 @@ textarea {
 
 .table {
   border-collapse: collapse;
+  min-width: 42rem;
   width: 100%;
+}
+
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table th,
@@ -558,7 +585,7 @@ textarea {
 .token-review-grid {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
 }
 
 .token-card {
@@ -599,12 +626,21 @@ textarea {
   .sidebar {
     position: static;
     height: auto;
+    padding: 1rem;
+  }
+  .content {
+    padding: 1rem;
+  }
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
   }
   .nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .metrics-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .scan-form {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
   .detail-header,
   .section-title,
@@ -615,5 +651,111 @@ textarea {
   .scan-facts,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .content {
+    padding: 0.75rem;
+  }
+  .sidebar {
+    border-bottom: 1px solid var(--border);
+    border-right: 0;
+  }
+  .brand {
+    padding: 0.35rem 0.25rem 0.85rem;
+  }
+  .nav {
+    grid-template-columns: 1fr;
+  }
+  .nav a {
+    padding: 0.65rem 0.7rem;
+  }
+  .panel {
+    box-shadow: none;
+  }
+  .headline {
+    font-size: 2.35rem;
+    line-height: 1;
+    max-width: 100%;
+  }
+  .lede {
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+  .button {
+    width: 100%;
+  }
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+  .tabs a {
+    flex: 0 0 auto;
+  }
+  .metric strong {
+    font-size: 1.55rem;
+  }
+  .table-wrap {
+    overflow: visible;
+  }
+  .table {
+    min-width: 0;
+  }
+  .table thead {
+    display: none;
+  }
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+  .table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: rgba(8, 11, 18, 0.28);
+    margin-bottom: 0.75rem;
+    padding: 0.2rem 0;
+  }
+  .table td {
+    border-bottom: 0;
+    padding: 0.65rem 0.75rem;
+  }
+  .table td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+  }
+  .table td:empty {
+    display: none;
+  }
+  .scan-facts {
+    gap: 0.6rem;
+  }
+  .score-ring {
+    justify-self: start;
+    min-width: 6rem;
+  }
+  .token-card header,
+  .token-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tooltip-panel {
+    left: auto;
+    right: -0.5rem;
+    transform: translateY(-0.25rem);
+  }
+  .info-tooltip:hover .tooltip-panel,
+  .info-tooltip:focus .tooltip-panel,
+  .info-tooltip:focus-visible .tooltip-panel {
+    transform: translateY(0);
   }
 }
