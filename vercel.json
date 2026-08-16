@@ -1,5 +1,5 @@
 {
   "buildCommand": "npm run build --workspaces --if-present",
-  "outputDirectory": "apps/web/dist/web",
+  "outputDirectory": "apps/web/dist/web/browser",
   "installCommand": "npm install"
 }
