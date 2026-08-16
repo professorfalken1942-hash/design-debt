@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("TEST_DATABASE_URL")
+}
+
+model Scan {
+  id          String    @id
+  rootUrl     String
+  status      String
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  pageCount   Int       @default(0)
+  maxPages    Int       @default(20)
+  progress    Int       @default(0)
+  healthScore Int?
+  error       String?
+  warnings    Json?
+  analysis    Json?
+  pages       Page[]
+  snapshots   ElementSnapshot[]
+  findings    Finding[]
+  tokens      TokenProposal[]
+}
+
+model Page {
+  id        String   @id
+  scanId    String
+  url       String
+  createdAt DateTime @default(now())
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}
+
+model ElementSnapshot {
+  id        String   @id
+  scanId    String
+  pageUrl   String
+  tagName   String
+  selector  String?
+  text      String?
+  styles    Json
+  width     Int?
+  height    Int?
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}
+
+model Finding {
+  id          String @id
+  scanId      String
+  category    String
+  severity    String
+  title       String
+  description String
+  count       Int
+  targetView  String
+  scan        Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}
+
+model TokenProposal {
+  id         String @id
+  scanId     String
+  name       String
+  value      String
+  type       String
+  category   String
+  uses       Int
+  status     String
+  confidence String?
+  mapsTo     String?
+  scan       Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}

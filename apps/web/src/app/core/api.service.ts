@@ -1,0 +1,127 @@
+import { HttpClient } from "@angular/common/http";
+import { Injectable, computed, inject, signal } from "@angular/core";
+import type { DesignDebtResults, ScanSummary, TokenProposal } from "@designdebt/shared";
+
+const API_BASE = "http://localhost:4310/api";
+
+@Injectable({ providedIn: "root" })
+export class ApiService {
+  private readonly http = inject(HttpClient);
+  readonly activeScan = signal<ScanSummary | null>(null);
+  readonly results = signal<DesignDebtResults | null>(null);
+  readonly tokens = signal<TokenProposal[]>([]);
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
+  readonly scoreLabel = computed(() => {
+    const score = this.results()?.healthScore ?? 0;
+    if (score >= 80) return "Healthy";
+    if (score >= 60) return "Needs review";
+    return "High drift";
+  });
+
+  async loadDemo(): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      await this.loadScan("demo");
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async startScan(rootUrl: string, maxPages: number): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const scan = await firstValue<ScanSummary>(
+        this.http.post<ScanSummary>(`${API_BASE}/scans`, { rootUrl, maxPages }),
+      );
+      this.activeScan.set(scan);
+      this.pollScan(scan.id);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "Unable to start scan.");
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async listScans(): Promise<ScanSummary[]> {
+    const response = await firstValue<{ scans: ScanSummary[] }>(
+      this.http.get<{ scans: ScanSummary[] }>(`${API_BASE}/scans`),
+    );
+    return response.scans;
+  }
+
+  async loadScan(id: string): Promise<void> {
+    this.error.set(null);
+    const scan = await firstValue<ScanSummary>(this.http.get<ScanSummary>(`${API_BASE}/scans/${id}`));
+    this.activeScan.set(scan);
+    if (scan.status === "completed") {
+      const [results, tokenResponse] = await Promise.all([
+        firstValue<DesignDebtResults>(this.http.get<DesignDebtResults>(`${API_BASE}/scans/${id}/results`)),
+        firstValue<{ tokens: TokenProposal[] }>(this.http.get<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${id}/tokens`)),
+      ]);
+      this.results.set(results);
+      this.tokens.set(tokenResponse.tokens);
+    } else {
+      this.results.set(null);
+      this.tokens.set([]);
+    }
+  }
+
+  async saveTokens(tokens: TokenProposal[]): Promise<void> {
+    const scan = this.activeScan();
+    if (!scan) return;
+    const response = await firstValue<{ tokens: TokenProposal[] }>(
+      this.http.put<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${scan.id}/tokens`, { tokens }),
+    );
+    this.tokens.set(response.tokens);
+  }
+
+  async retryScan(id: string): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const scan = await firstValue<ScanSummary>(
+        this.http.post<ScanSummary>(`${API_BASE}/scans/${id}/retry`, {}),
+      );
+      this.activeScan.set(scan);
+      this.results.set(null);
+      this.tokens.set([]);
+      this.pollScan(scan.id);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "Unable to retry scan.");
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async copyExport(format: "css" | "json"): Promise<string> {
+    const scan = this.activeScan();
+    if (!scan) return "";
+    const response = await fetch(`${API_BASE}/scans/${scan.id}/tokens/export?format=${format}`);
+    return format === "css" ? response.text() : JSON.stringify(await response.json(), null, 2);
+  }
+
+  private pollScan(id: string): void {
+    const interval = window.setInterval(async () => {
+      await this.loadScan(id);
+      const status = this.activeScan()?.status;
+      if (status === "completed" || status === "failed") {
+        window.clearInterval(interval);
+      }
+    }, 1400);
+  }
+}
+
+function firstValue<T>(source: { subscribe: (observer: { next: (value: T) => void; error: (error: unknown) => void }) => { unsubscribe: () => void } }): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const subscription = source.subscribe({
+      next: (value) => {
+        resolve(value);
+        subscription.unsubscribe();
+      },
+      error: (error) => reject(error),
+    });
+  });
+}

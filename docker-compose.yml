@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: designdebt-postgres
+    restart: unless-stopped
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: designdebt
+      POSTGRES_USER: designdebt
+      POSTGRES_PASSWORD: designdebt
+    volumes:
+      - designdebt-postgres:/var/lib/postgresql/data
+
+volumes:
+  designdebt-postgres:
+

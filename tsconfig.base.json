@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@designdebt/shared": ["packages/shared/src/index.ts"],
+      "@designdebt/analysis": ["packages/analysis/src/index.ts"],
+      "@designdebt/scanner": ["packages/scanner/src/index.ts"]
+    }
+  }
+}
