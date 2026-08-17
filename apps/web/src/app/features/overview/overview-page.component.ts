@@ -9,41 +9,50 @@ import { ApiService } from "../../core/api.service";
   imports: [FormsModule, RouterLink],
   template: `
     <section class="page">
-      <div class="topbar">
-        <span class="badge">MVP demo ready</span>
-      </div>
-
-      <div class="panel" style="padding: clamp(1.2rem, 4vw, 2.5rem);">
-        <p class="eyebrow">DesignDebt + TokenForge</p>
-        <h1 class="headline">Understand your interface.</h1>
-        <p class="lede">
-          Scan a website to uncover visual inconsistencies, design-system drift,
-          and opportunities for token consolidation.
-        </p>
-
-        <form (ngSubmit)="startScan()" class="scan-form">
-          <label class="field url-field">
-            <span class="eyebrow" style="margin-bottom: .4rem;">Website URL</span>
-            <input class="input" name="url" [(ngModel)]="url" placeholder="https://example.com" />
-          </label>
-          <label class="field pages-field">
-            <span class="eyebrow" style="margin-bottom: .4rem;">Max pages</span>
-            <input class="input" name="maxPages" type="number" min="1" max="50" [(ngModel)]="maxPages" />
-          </label>
-          <button class="button primary" type="submit">Start scan</button>
-        </form>
-
-        <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-top: 1rem;">
-          <button class="button secondary" type="button" (click)="loadDemo()">View demo scan</button>
-          @if (api.error()) {
-            <p style="color: var(--danger); margin: .65rem 0 0;">{{ api.error() }}</p>
-          }
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <span class="badge">Live scanner</span>
+          <p class="eyebrow">DesignDebt + TokenForge</p>
+          <h1 class="headline">Turn messy UI evidence into clear design decisions.</h1>
+          <p class="lede">
+            Scan a site, see where visual decisions drift, and turn repeated colors,
+            spacing, type, and component patterns into a reviewable token plan.
+          </p>
         </div>
-      </div>
+
+        <aside class="hero-card">
+          <div class="hero-card-header">
+            <div>
+              <p class="eyebrow">Start a scan</p>
+              <h2 style="margin:.2rem 0 0;">Audit a public site</h2>
+            </div>
+            <span class="badge">1-3 min</span>
+          </div>
+
+          <form (ngSubmit)="startScan()" class="scan-form">
+            <label class="field url-field">
+              <span>Website URL</span>
+              <input class="input" name="url" [(ngModel)]="url" placeholder="https://example.com" />
+            </label>
+            <label class="field pages-field">
+              <span>Pages</span>
+              <input class="input" name="maxPages" type="number" min="1" max="50" [(ngModel)]="maxPages" />
+            </label>
+            <button class="button primary" type="submit" [disabled]="api.loading()">Start scan</button>
+          </form>
+
+          <div class="scan-actions">
+            <button class="button secondary" type="button" (click)="loadDemo()">View demo scan</button>
+            @if (api.error()) {
+              <p class="form-error">{{ api.error() }}</p>
+            }
+          </div>
+        </aside>
+      </section>
 
       @if (api.activeScan()) {
-        <section class="section panel" style="padding: 1rem;">
-          <div class="section-title">
+        <section class="section status-card">
+          <div class="status-main">
             <div>
               <p class="eyebrow">Current scan</p>
               <h2 style="margin:.2rem 0 0;">{{ api.activeScan()?.rootUrl }}</h2>
@@ -51,14 +60,18 @@ import { ApiService } from "../../core/api.service";
             <span class="badge">{{ api.activeScan()?.status }}</span>
           </div>
           <div class="progress" style="margin-top:1rem;">
-            <span [style.width.%]="api.activeScan()?.status === 'completed' ? 100 : 42"></span>
+            <span [style.width.%]="api.activeScan()?.progress ?? 0"></span>
+          </div>
+          <div class="status-meta">
+            <span>{{ api.activeScan()?.progress ?? 0 }}% complete</span>
+            <a routerLink="/scans">Open scan history</a>
           </div>
         </section>
       }
 
       @if (api.results(); as results) {
-        <section class="section metrics-grid">
-          <article class="metric">
+        <section class="section insight-grid">
+          <article class="metric score-card">
             <span class="metric-label">
               Design Health Score
               <span class="info-tooltip" tabindex="0" aria-label="How Design Health Score is calculated">
@@ -79,7 +92,7 @@ import { ApiService } from "../../core/api.service";
           <article class="metric"><span>Potential inconsistencies</span><strong>{{ results.metrics.potentialInconsistencies }}</strong></article>
         </section>
 
-        <section class="section panel" style="padding:1rem;">
+        <section class="section panel section-panel">
           <div class="section-title">
             <div>
               <p class="eyebrow">Highest-impact findings</p>
@@ -87,18 +100,14 @@ import { ApiService } from "../../core/api.service";
             </div>
             <a class="button secondary" routerLink="/design-debt">Open Design Debt</a>
           </div>
-          <div class="table-wrap">
-            <table class="table" style="margin-top:1rem;">
-              <tbody>
-                @for (finding of results.findings; track finding.id) {
-                  <tr>
-                    <td data-label="Finding"><strong>{{ finding.title }}</strong><br><span style="color:var(--muted);">{{ finding.description }}</span></td>
-                    <td data-label="Count">{{ finding.count }}</td>
-                    <td data-label="Action"><a [routerLink]="['/design-debt', finding.targetView]">View</a></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+          <div class="finding-preview-grid">
+            @for (finding of results.findings.slice(0, 4); track finding.id) {
+              <a class="finding-preview" [routerLink]="['/design-debt', finding.targetView]">
+                <span>{{ finding.category }} · {{ finding.count }} uses</span>
+                <strong>{{ finding.title }}</strong>
+                <small>{{ finding.description }}</small>
+              </a>
+            }
           </div>
         </section>
       }

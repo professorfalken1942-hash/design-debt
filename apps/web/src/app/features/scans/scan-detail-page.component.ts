@@ -2,11 +2,12 @@ import { Component, OnDestroy, computed, inject, signal } from "@angular/core";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import type { Finding, ScanSummary, TokenProposal } from "@designdebt/shared";
 import { ApiService } from "../../core/api.service";
+import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
 
 @Component({
   selector: "dd-scan-detail-page",
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, DeleteScanDialogComponent],
   template: `
     <section class="page">
       <div class="topbar">
@@ -24,7 +25,7 @@ import { ApiService } from "../../core/api.service";
               {{ active.status === "completed" ? "Run again" : "Retry" }}
             </button>
             @if (active.id !== "demo") {
-              <button class="button danger" type="button" (click)="deleteScan(active)">Delete</button>
+              <button class="button quiet-danger" type="button" (click)="requestDelete(active)">Remove</button>
             }
           }
         </div>
@@ -165,6 +166,14 @@ import { ApiService } from "../../core/api.service";
           </div>
         </section>
       }
+
+      <dd-delete-scan-dialog
+        [scan]="scanPendingDelete()"
+        [deleting]="deleting()"
+        [error]="deleteError()"
+        (cancel)="cancelDelete()"
+        (confirm)="deleteScan()"
+      />
     </section>
   `,
 })
@@ -175,6 +184,9 @@ export class ScanDetailPageComponent implements OnDestroy {
   private pollHandle: number | null = null;
   readonly scan = this.api.activeScan;
   readonly error = signal<string | null>(null);
+  readonly scanPendingDelete = signal<ScanSummary | null>(null);
+  readonly deleting = signal(false);
+  readonly deleteError = signal<string | null>(null);
   readonly findings = computed<Finding[]>(() => this.api.results()?.findings ?? []);
   readonly reviewTokens = computed<TokenProposal[]>(() =>
     this.api.tokens().filter((token) => token.status === "needs-review"),
@@ -217,17 +229,32 @@ export class ScanDetailPageComponent implements OnDestroy {
     this.syncPolling();
   }
 
-  async deleteScan(scan: ScanSummary): Promise<void> {
-    const confirmed = window.confirm(`Delete scan for ${scan.rootUrl}? This cannot be undone.`);
-    if (!confirmed) return;
+  requestDelete(scan: ScanSummary): void {
+    this.deleteError.set(null);
+    this.scanPendingDelete.set(scan);
+  }
+
+  cancelDelete(): void {
+    if (this.deleting()) return;
+    this.scanPendingDelete.set(null);
+    this.deleteError.set(null);
+  }
+
+  async deleteScan(): Promise<void> {
+    const scan = this.scanPendingDelete();
+    if (!scan) return;
 
     this.stopPolling();
+    this.deleting.set(true);
+    this.deleteError.set(null);
     this.error.set(null);
     try {
       await this.api.deleteScan(scan.id);
       await this.router.navigate(["/scans"]);
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : "The scan could not be deleted.");
+      this.deleteError.set(error instanceof Error ? error.message : "The scan could not be deleted.");
+    } finally {
+      this.deleting.set(false);
     }
   }
 

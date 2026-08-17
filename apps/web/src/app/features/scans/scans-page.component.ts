@@ -2,11 +2,12 @@ import { Component, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 import type { ScanSummary } from "@designdebt/shared";
 import { ApiService } from "../../core/api.service";
+import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
 
 @Component({
   selector: "dd-scans-page",
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, DeleteScanDialogComponent],
   template: `
     <section class="page">
       <div class="topbar">
@@ -58,7 +59,14 @@ import { ApiService } from "../../core/api.service";
                       <div class="row-actions">
                         <a class="button secondary" [routerLink]="['/scans', scan.id]">Open</a>
                         @if (scan.id !== "demo") {
-                          <button class="button danger" type="button" (click)="deleteScan(scan)">Delete</button>
+                          <button
+                            class="button quiet-danger"
+                            type="button"
+                            (click)="requestDelete(scan)"
+                            [disabled]="deletingId() === scan.id"
+                          >
+                            {{ deletingId() === scan.id ? "Removing..." : "Remove" }}
+                          </button>
                         }
                       </div>
                     </td>
@@ -69,6 +77,14 @@ import { ApiService } from "../../core/api.service";
           </div>
         }
       </section>
+
+      <dd-delete-scan-dialog
+        [scan]="scanPendingDelete()"
+        [deleting]="deletingId() !== null"
+        [error]="deleteError()"
+        (cancel)="cancelDelete()"
+        (confirm)="deleteScan()"
+      />
     </section>
   `,
 })
@@ -77,6 +93,9 @@ export class ScansPageComponent {
   readonly scans = signal<ScanSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly scanPendingDelete = signal<ScanSummary | null>(null);
+  readonly deletingId = signal<string | null>(null);
+  readonly deleteError = signal<string | null>(null);
 
   constructor() {
     void this.load();
@@ -99,19 +118,31 @@ export class ScansPageComponent {
     await this.load();
   }
 
-  async deleteScan(scan: ScanSummary): Promise<void> {
-    const confirmed = window.confirm(`Delete scan for ${scan.rootUrl}? This cannot be undone.`);
-    if (!confirmed) return;
+  requestDelete(scan: ScanSummary): void {
+    this.deleteError.set(null);
+    this.scanPendingDelete.set(scan);
+  }
 
-    this.loading.set(true);
-    this.error.set(null);
+  cancelDelete(): void {
+    if (this.deletingId()) return;
+    this.scanPendingDelete.set(null);
+    this.deleteError.set(null);
+  }
+
+  async deleteScan(): Promise<void> {
+    const scan = this.scanPendingDelete();
+    if (!scan) return;
+
+    this.deletingId.set(scan.id);
+    this.deleteError.set(null);
     try {
       await this.api.deleteScan(scan.id);
       this.scans.set(this.scans().filter((item) => item.id !== scan.id));
+      this.scanPendingDelete.set(null);
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : "The scan could not be deleted.");
+      this.deleteError.set(error instanceof Error ? error.message : "The scan could not be deleted.");
     } finally {
-      this.loading.set(false);
+      this.deletingId.set(null);
     }
   }
 
