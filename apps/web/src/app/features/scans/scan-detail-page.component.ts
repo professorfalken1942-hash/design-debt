@@ -40,6 +40,15 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
         </section>
       } @else if (scan(); as active) {
         <section class="section panel" style="padding:1rem;">
+          @if (isActiveScanRunning(active)) {
+            <div class="activity-panel detail-activity" role="status" aria-live="polite">
+              <span class="activity-dot" aria-hidden="true"></span>
+              <div>
+                <strong>Scan is running</strong>
+                <p>UIpen is collecting rendered styles now. This page refreshes automatically while the scan moves from crawling to analysis.</p>
+              </div>
+            </div>
+          }
           <div class="detail-header">
             <div>
               <span class="badge" [class]="active.status">{{ active.status }}</span>
@@ -62,6 +71,9 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
           <div class="progress" style="margin-top:1.1rem;">
             <span [style.width.%]="active.progress"></span>
           </div>
+          @if (isActiveScanRunning(active)) {
+            <div class="progress-indeterminate" aria-hidden="true"><span></span></div>
+          }
           <div class="scan-stage-list" aria-label="Scan progress stages">
             @for (stage of scanStages(active); track stage.label) {
               <div [class.done]="stage.done" [class.active]="stage.active">
@@ -284,6 +296,10 @@ export class ScanDetailPageComponent implements OnDestroy {
     if (scan.status === "failed") return scan.error ?? "The scanner hit an unrecoverable issue.";
     if (scan.status === "running") return "The crawler is collecting visible styles and same-origin pages.";
     return "The scan has been accepted and will begin shortly.";
+  }
+
+  isActiveScanRunning(scan: ScanSummary): boolean {
+    return scan.status === "queued" || scan.status === "running";
   }
 
   scanStages(scan: ScanSummary) {

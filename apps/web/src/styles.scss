@@ -462,6 +462,22 @@ textarea {
   background: linear-gradient(90deg, var(--accent-deep), var(--accent-2));
 }
 
+.progress-indeterminate {
+  background: rgba(76, 186, 247, 0.08);
+  border-radius: 999px;
+  height: 0.18rem;
+  margin-top: 0.45rem;
+  overflow: hidden;
+}
+
+.progress-indeterminate span {
+  animation: scan-sweep 1.45s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  display: block;
+  height: 100%;
+  width: 42%;
+}
+
 .swatch {
   display: inline-block;
   width: 1.4rem;
@@ -565,6 +581,50 @@ textarea {
   padding: 1rem;
 }
 
+.status-card.running {
+  border-color: rgba(76, 186, 247, 0.36);
+  background:
+    linear-gradient(135deg, rgba(76, 186, 247, 0.08), rgba(94, 194, 152, 0.06)),
+    rgba(20, 33, 29, 0.72);
+}
+
+.activity-panel {
+  align-items: start;
+  border: 1px solid rgba(76, 186, 247, 0.34);
+  border-radius: var(--radius);
+  background: rgba(76, 186, 247, 0.08);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-top: 1rem;
+  padding: 0.85rem;
+}
+
+.detail-activity {
+  margin: 0 0 1rem;
+}
+
+.activity-dot {
+  animation: scan-pulse 1.35s ease-in-out infinite;
+  background: var(--accent-2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(94, 194, 152, 0.34);
+  display: inline-block;
+  height: 0.7rem;
+  margin-top: 0.35rem;
+  width: 0.7rem;
+}
+
+.activity-panel strong {
+  display: block;
+}
+
+.activity-panel p {
+  color: var(--muted-strong);
+  line-height: 1.55;
+  margin: 0.3rem 0 0;
+}
+
 .status-meta {
   color: var(--muted);
   font-size: 0.88rem;
@@ -586,6 +646,37 @@ textarea {
   justify-items: center;
   min-width: 7rem;
   padding: 1rem;
+}
+
+@keyframes scan-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 194, 152, 0.38);
+    transform: scale(0.92);
+  }
+  70% {
+    box-shadow: 0 0 0 0.55rem rgba(94, 194, 152, 0);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(94, 194, 152, 0);
+    transform: scale(0.92);
+  }
+}
+
+@keyframes scan-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-dot,
+  .progress-indeterminate span {
+    animation: none;
+  }
 }
 
 .score-ring span {

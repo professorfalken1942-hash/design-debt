@@ -12,6 +12,11 @@ export class ApiService {
   readonly tokens = signal<TokenProposal[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly pendingScanUrl = signal<string | null>(null);
+  readonly scanInProgress = computed(() => {
+    const status = this.activeScan()?.status;
+    return status === "queued" || status === "running";
+  });
   readonly scoreLabel = computed(() => {
     const score = this.results()?.healthScore ?? 0;
     if (score >= 80) return "Healthy";
@@ -32,6 +37,7 @@ export class ApiService {
   async startScan(rootUrl: string, maxPages: number): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
+    this.pendingScanUrl.set(rootUrl);
     try {
       const scan = await firstValue<ScanSummary>(
         this.http.post<ScanSummary>(`${API_BASE}/scans`, { rootUrl, maxPages }),
@@ -44,6 +50,7 @@ export class ApiService {
     } catch (error) {
       this.error.set(apiErrorMessage(error, "Unable to start scan."));
     } finally {
+      this.pendingScanUrl.set(null);
       this.loading.set(false);
     }
   }
@@ -92,6 +99,7 @@ export class ApiService {
   async retryScan(id: string): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
+    this.pendingScanUrl.set(this.activeScan()?.rootUrl ?? null);
     try {
       const scan = await firstValue<ScanSummary>(
         this.http.post<ScanSummary>(`${API_BASE}/scans/${id}/retry`, {}),
@@ -103,6 +111,7 @@ export class ApiService {
     } catch (error) {
       this.error.set(apiErrorMessage(error, "Unable to retry scan."));
     } finally {
+      this.pendingScanUrl.set(null);
       this.loading.set(false);
     }
   }

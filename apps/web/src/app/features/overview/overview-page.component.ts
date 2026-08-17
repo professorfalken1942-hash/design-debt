@@ -32,36 +32,54 @@ import { ApiService } from "../../core/api.service";
           <form (ngSubmit)="startScan()" class="scan-form">
             <label class="field url-field">
               <span>Website URL</span>
-              <input class="input" name="url" [(ngModel)]="url" placeholder="https://example.com" />
+              <input class="input" name="url" [(ngModel)]="url" placeholder="https://example.com" [disabled]="api.loading()" />
             </label>
             <label class="field pages-field">
               <span>Pages</span>
-              <input class="input" name="maxPages" type="number" min="1" max="50" [(ngModel)]="maxPages" />
+              <input class="input" name="maxPages" type="number" min="1" max="50" [(ngModel)]="maxPages" [disabled]="api.loading()" />
             </label>
-            <button class="button primary" type="submit" [disabled]="api.loading()">Start scan</button>
+            <button class="button primary" type="submit" [disabled]="api.loading()">
+              {{ api.loading() ? "Starting scan..." : "Start scan" }}
+            </button>
           </form>
 
           <div class="scan-actions">
-            <button class="button secondary" type="button" (click)="loadDemo()">View demo scan</button>
+            <button class="button secondary" type="button" (click)="loadDemo()" [disabled]="api.loading()">View demo scan</button>
             @if (api.error()) {
               <p class="form-error">{{ api.error() }}</p>
             }
           </div>
+
+          @if (api.pendingScanUrl()) {
+            <div class="activity-panel" role="status" aria-live="polite">
+              <span class="activity-dot" aria-hidden="true"></span>
+              <div>
+                <strong>Scan is running</strong>
+                <p>UIpen is opening {{ api.pendingScanUrl() }}, waiting for rendered styles, and preparing the audit. This can take a minute on production scans.</p>
+              </div>
+            </div>
+          }
         </aside>
       </section>
 
       @if (api.activeScan()) {
-        <section class="section status-card">
+        <section class="section status-card" [class.running]="api.scanInProgress()">
           <div class="status-main">
             <div>
-              <p class="eyebrow">Current scan</p>
+              <p class="eyebrow">{{ api.scanInProgress() ? "Scan running" : "Current scan" }}</p>
               <h2 style="margin:.2rem 0 0;">{{ api.activeScan()?.rootUrl }}</h2>
+              @if (api.scanInProgress()) {
+                <p style="color:var(--muted); margin:.45rem 0 0;">Collecting visible styles and same-origin pages. You can leave this view open; results will appear automatically.</p>
+              }
             </div>
-            <span class="badge">{{ api.activeScan()?.status }}</span>
+            <span class="badge" [class.running]="api.scanInProgress()">{{ api.activeScan()?.status }}</span>
           </div>
           <div class="progress" style="margin-top:1rem;">
             <span [style.width.%]="api.activeScan()?.progress ?? 0"></span>
           </div>
+          @if (api.scanInProgress()) {
+            <div class="progress-indeterminate" aria-hidden="true"><span></span></div>
+          }
           <div class="status-meta">
             <span>{{ api.activeScan()?.progress ?? 0 }}% complete</span>
             <a routerLink="/scans">Open scan history</a>
