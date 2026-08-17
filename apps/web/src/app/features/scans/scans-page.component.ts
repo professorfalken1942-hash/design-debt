@@ -14,8 +14,8 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
       <div class="topbar">
         <div>
           <p class="eyebrow">Scans</p>
-          <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.04em; margin:.2rem 0;">Recent scan activity</h1>
-          <p class="lede">Track submitted sites, inspect scan progress, and open completed DesignDebt and TokenForge results.</p>
+          <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.03em; margin:.2rem 0;">Recent scan activity</h1>
+          <p class="lede">Track submitted sites, inspect scan progress, and open completed UIpen audit and token results.</p>
         </div>
         <button class="button secondary" type="button" (click)="load()">Refresh</button>
       </div>

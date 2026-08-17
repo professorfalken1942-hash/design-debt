@@ -11,13 +11,13 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
   imports: [RouterLink, RouterLinkActive],
   template: `
     <section class="page">
-      <p class="eyebrow">Design Debt</p>
-      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.04em; margin:.2rem 0;">Visual inventory and drift</h1>
+      <p class="eyebrow">Audit</p>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.03em; margin:.2rem 0;">Visual inventory and drift</h1>
       <p class="lede">Review detected values, usage counts, examples, and likely inconsistencies across the scanned interface.</p>
 
       <nav class="tabs section" aria-label="Design debt categories">
         @for (category of categories; track category) {
-          <a [routerLink]="['/design-debt', category]" routerLinkActive="active">{{ label(category) }}</a>
+          <a [routerLink]="['/audit', category]" routerLinkActive="active">{{ label(category) }}</a>
         }
       </nav>
 

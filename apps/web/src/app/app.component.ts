@@ -9,16 +9,16 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
     <div class="shell">
       <aside class="sidebar">
         <a routerLink="/overview" class="brand">
-          <span class="brand-mark" aria-hidden="true">D</span>
+          <span class="brand-mark" aria-hidden="true">U</span>
           <span>
-            <strong>DesignDebt</strong>
-            <small>UI observability for design quality</small>
+            <strong>UIpen</strong>
+            <small>UI intelligence for design quality</small>
           </span>
         </a>
         <nav class="nav" aria-label="Primary">
           <a routerLink="/overview" routerLinkActive="active">Overview <span>Start</span></a>
-          <a routerLink="/design-debt" routerLinkActive="active">Design Debt <span>Audit</span></a>
-          <a routerLink="/token-forge" routerLinkActive="active">Token Forge <span>Tokens</span></a>
+          <a routerLink="/audit" routerLinkActive="active">Audit <span>Debt</span></a>
+          <a routerLink="/tokens" routerLinkActive="active">Tokens <span>Forge</span></a>
           <a routerLink="/scans" routerLinkActive="active">Scans <span>History</span></a>
           <a routerLink="/settings" routerLinkActive="active">Settings <span>Defaults</span></a>
         </nav>

@@ -9,9 +9,9 @@ import { ApiService } from "../../core/api.service";
   imports: [FormsModule],
   template: `
     <section class="page">
-      <p class="eyebrow">TokenForge</p>
-      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.04em; margin:.2rem 0;">Generate a cleaner token system.</h1>
-      <p class="lede">TokenForge turns what the scan found into a practical starting point: reusable values, clearer roles, and a review queue you can shape before anything gets exported.</p>
+      <p class="eyebrow">Tokens</p>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.03em; margin:.2rem 0;">Generate a cleaner token system.</h1>
+      <p class="lede">UIpen turns what the scan found into a practical starting point: reusable values, clearer roles, and a review queue you can shape before anything gets exported.</p>
 
       @if (!api.tokens().length) {
         <section class="section panel" style="padding:1.2rem;">

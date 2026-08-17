@@ -12,7 +12,7 @@ import { ApiService } from "../../core/api.service";
       <section class="hero-panel">
         <div class="hero-copy">
           <span class="badge">Live scanner</span>
-          <p class="eyebrow">DesignDebt + TokenForge</p>
+          <p class="eyebrow">UIpen</p>
           <h1 class="headline">Turn messy UI evidence into clear design decisions.</h1>
           <p class="lede">
             Scan a site, see where visual decisions drift, and turn repeated colors,
@@ -108,11 +108,11 @@ import { ApiService } from "../../core/api.service";
               <p class="eyebrow">Highest-impact findings</p>
               <h2 style="margin:0;">Suggestions to review first</h2>
             </div>
-            <a class="button secondary" routerLink="/design-debt">Open Design Debt</a>
+            <a class="button secondary" routerLink="/audit">Open Audit</a>
           </div>
           <div class="finding-preview-grid">
             @for (finding of results.findings.slice(0, 4); track finding.id) {
-              <a class="finding-preview" [routerLink]="['/design-debt', finding.targetView]">
+              <a class="finding-preview" [routerLink]="['/audit', finding.targetView]">
                 <span>{{ finding.category }} · {{ finding.count }} uses</span>
                 <strong>{{ finding.title }}</strong>
                 <small>{{ finding.description }}</small>

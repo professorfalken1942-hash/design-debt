@@ -14,7 +14,7 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
         <div>
           <a routerLink="/scans" style="color:var(--muted); text-decoration:none;">Back to scans</a>
           <p class="eyebrow">Scan Detail</p>
-          <h1 style="font-size:clamp(1.8rem,4vw,3rem); letter-spacing:-.04em; margin:.2rem 0;">
+          <h1 style="font-size:clamp(1.8rem,4vw,3rem); letter-spacing:-.03em; margin:.2rem 0;">
             {{ scan()?.rootUrl ?? "Loading scan" }}
           </h1>
         </div>
@@ -125,8 +125,8 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
               <h2 style="margin:0;">{{ nextStepTitle() }}</h2>
             </div>
             <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
-              <a class="button primary" routerLink="/design-debt">Inspect DesignDebt</a>
-              <a class="button secondary" routerLink="/token-forge">Review TokenForge</a>
+              <a class="button primary" routerLink="/audit">Inspect Audit</a>
+              <a class="button secondary" routerLink="/tokens">Review Tokens</a>
             </div>
           </section>
 
@@ -141,7 +141,7 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
               </div>
               <div class="finding-list">
                 @for (finding of findings().slice(0, 6); track finding.id) {
-                  <a class="finding-row" [routerLink]="['/design-debt', finding.targetView]">
+                  <a class="finding-row" [routerLink]="['/audit', finding.targetView]">
                     <span>{{ finding.category }}</span>
                     <strong>{{ finding.title }}</strong>
                     <small>{{ finding.description }}</small>
@@ -153,7 +153,7 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
             <article class="panel" style="padding:1rem;">
               <div class="section-title">
                 <div>
-                  <p class="eyebrow">TokenForge</p>
+                  <p class="eyebrow">Tokens</p>
                   <h2 style="margin:0;">Review queue</h2>
                 </div>
                 <span class="badge">{{ reviewTokens().length }} review</span>
@@ -308,7 +308,7 @@ export class ScanDetailPageComponent implements OnDestroy {
       },
       {
         label: "Ready",
-        copy: "Results, inventory, and TokenForge proposals are available.",
+        copy: "Results, inventory, and token proposals are available.",
         done: scan.status === "completed",
         active: scan.status === "completed",
       },

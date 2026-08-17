@@ -9,10 +9,13 @@ import { SettingsPageComponent } from "./features/settings/settings-page.compone
 export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "overview" },
   { path: "overview", component: OverviewPageComponent },
-  { path: "design-debt", component: DesignDebtPageComponent },
-  { path: "design-debt/:category", component: DesignDebtPageComponent },
-  { path: "token-forge", component: TokenForgePageComponent },
+  { path: "audit", component: DesignDebtPageComponent },
+  { path: "audit/:category", component: DesignDebtPageComponent },
+  { path: "tokens", component: TokenForgePageComponent },
   { path: "scans", component: ScansPageComponent },
   { path: "scans/:id", component: ScanDetailPageComponent },
   { path: "settings", component: SettingsPageComponent },
+  { path: "design-debt", pathMatch: "full", redirectTo: "audit" },
+  { path: "design-debt/:category", redirectTo: "audit/:category" },
+  { path: "token-forge", pathMatch: "full", redirectTo: "tokens" },
 ];

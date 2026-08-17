@@ -6,7 +6,7 @@ import { Component } from "@angular/core";
   template: `
     <section class="page">
       <p class="eyebrow">Settings</p>
-      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.04em; margin:.2rem 0;">Workspace settings</h1>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.03em; margin:.2rem 0;">Workspace settings</h1>
       <p class="lede">Current scan behavior is intentionally conservative while the scanner hardens: public URLs only, same-origin crawling, and bounded page counts for predictable production runs.</p>
 
       <section class="section panel" style="padding:1.2rem;">

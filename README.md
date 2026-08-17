@@ -1,8 +1,8 @@
-# DesignDebt + TokenForge
+# UIpen
 
-DesignDebt is an MVP SaaS product for UI observability: it scans public websites and reports visual/design-system inconsistency.
+UIpen is an MVP SaaS product for UI intelligence: it scans public websites and reports visual/design-system inconsistency.
 
-TokenForge uses the same scan data to infer a cleaner token system and export it as CSS variables or JSON.
+Its token workflow uses the same scan data to infer a cleaner token system and export it as CSS variables or JSON.
 
 ## Architecture
 
@@ -114,6 +114,6 @@ curl -X POST http://localhost:4310/api/scans \
 
 1. Move scan execution to a queue/worker with retries and cancellation.
 2. Add scan detail drill-down routes for individual pages and element snapshots.
-3. Expand DesignDebt category analysis.
-4. Add richer TokenForge consolidation review and diff previews.
+3. Expand audit category analysis.
+4. Add richer token consolidation review and diff previews.
 5. Add authenticated workspaces and scan history management.

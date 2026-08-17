@@ -12,7 +12,7 @@ app.use(express.json({ limit: "1mb" }));
 app.get(["/health", "/api/health"], (_request, response) => {
   response.json({
     ok: true,
-    service: "designdebt-api",
+    service: "uipen-api",
     databaseConfigured: env.databaseConfigured,
     databaseHost: env.databaseHost,
   });
