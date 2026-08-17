@@ -167,6 +167,22 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
   return scan ? toScanSummary(scan) : null;
 }
 
+export async function deleteScanRecord(scanId: string): Promise<boolean> {
+  const deleted = await prisma.$transaction(async (transaction) => {
+    const existing = await transaction.scan.findUnique({ where: { id: scanId } });
+    if (!existing) return false;
+
+    await transaction.page.deleteMany({ where: { scanId } });
+    await transaction.elementSnapshot.deleteMany({ where: { scanId } });
+    await transaction.finding.deleteMany({ where: { scanId } });
+    await transaction.tokenProposal.deleteMany({ where: { scanId } });
+    await transaction.scan.delete({ where: { id: scanId } });
+    return true;
+  });
+
+  return deleted;
+}
+
 export async function getPersistedResults(scanId: string): Promise<DesignDebtResults | null> {
   const scan = await prisma.scan.findUnique({
     where: { id: scanId },

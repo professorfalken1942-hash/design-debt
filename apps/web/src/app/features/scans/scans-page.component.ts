@@ -54,7 +54,14 @@ import { ApiService } from "../../core/api.service";
                     <td data-label="Pages">{{ scan.pageCount }}</td>
                     <td data-label="Warnings">{{ scan.warnings?.length ?? 0 }}</td>
                     <td data-label="Score">{{ scan.healthScore ?? '-' }}</td>
-                    <td data-label="Action"><a class="button secondary" [routerLink]="['/scans', scan.id]">Open</a></td>
+                    <td data-label="Action">
+                      <div class="row-actions">
+                        <a class="button secondary" [routerLink]="['/scans', scan.id]">Open</a>
+                        @if (scan.id !== "demo") {
+                          <button class="button danger" type="button" (click)="deleteScan(scan)">Delete</button>
+                        }
+                      </div>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -90,6 +97,22 @@ export class ScansPageComponent {
   async loadDemo() {
     await this.api.loadDemo();
     await this.load();
+  }
+
+  async deleteScan(scan: ScanSummary): Promise<void> {
+    const confirmed = window.confirm(`Delete scan for ${scan.rootUrl}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      await this.api.deleteScan(scan.id);
+      this.scans.set(this.scans().filter((item) => item.id !== scan.id));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "The scan could not be deleted.");
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   formatDate(value: string): string {

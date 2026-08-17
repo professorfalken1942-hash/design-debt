@@ -13,6 +13,7 @@ import { PlaywrightWebsiteScanner, validatePublicHttpUrl } from "../../../../pac
 import {
   completeScanRecord,
   createScanRecord,
+  deleteScanRecord,
   failScanRecord,
   getPersistedResults,
   getPersistedTokens,
@@ -78,6 +79,14 @@ export async function getScan(id: string): Promise<ScanSummary | null> {
   return getScanRecord(id);
 }
 
+export async function deleteScan(id: string): Promise<boolean> {
+  await ensureDemoScan();
+  if (id === "demo") {
+    throw new ScanInputError("The demo scan cannot be deleted.");
+  }
+  return deleteScanRecord(id);
+}
+
 export async function getResults(id: string): Promise<DesignDebtResults | null> {
   await ensureDemoScan();
   return getPersistedResults(id);
@@ -129,9 +138,8 @@ async function executeScan(scanId: string): Promise<void> {
   const scan = await getScanRecord(scanId);
   if (!scan) return;
 
-  await markScanRunning(scanId);
-
   try {
+    await markScanRunning(scanId);
     const scanResult = await scanner.scan(scan.rootUrl, {
       maxPages: isServerlessRuntime() ? Math.min(scan.maxPages, 3) : scan.maxPages,
       timeoutMs: isServerlessRuntime() ? 12_000 : undefined,
@@ -150,10 +158,14 @@ async function executeScan(scanId: string): Promise<void> {
       warnings: scanResult.warnings,
     });
   } catch (error) {
-    await failScanRecord(
-      scanId,
-      error instanceof Error ? error.message : "Scan failed.",
-    );
+    try {
+      await failScanRecord(
+        scanId,
+        error instanceof Error ? error.message : "Scan failed.",
+      );
+    } catch {
+      // The scan may have been deleted while a background crawl was still running.
+    }
   }
 }
 

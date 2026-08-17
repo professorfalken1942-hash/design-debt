@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   createScan,
+  deleteScan,
   exportTokens,
   getResults,
   getScan,
@@ -62,6 +63,23 @@ scansRouter.post("/:id/retry", async (request, response, next) => {
     }
     response.status(202).json(scan);
   } catch (error) {
+    next(error);
+  }
+});
+
+scansRouter.delete("/:id", async (request, response, next) => {
+  try {
+    const deleted = await deleteScan(request.params.id);
+    if (!deleted) {
+      response.status(404).json({ error: "Scan not found." });
+      return;
+    }
+    response.status(204).send();
+  } catch (error) {
+    if (error instanceof ScanInputError) {
+      response.status(400).json({ error: error.message });
+      return;
+    }
     next(error);
   }
 });

@@ -242,6 +242,24 @@ textarea {
   color: var(--text);
 }
 
+.button.danger {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.34);
+  color: #fecdd3;
+}
+
+.button.danger:hover {
+  background: rgba(251, 113, 133, 0.16);
+  border-color: rgba(251, 113, 133, 0.52);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .input,
 .select {
   width: 100%;
@@ -685,6 +703,13 @@ textarea {
   }
   .button {
     width: 100%;
+  }
+  .row-actions {
+    justify-content: stretch;
+  }
+  .row-actions .button {
+    flex: 1 1 8rem;
+    width: auto;
   }
   .tabs {
     flex-wrap: nowrap;

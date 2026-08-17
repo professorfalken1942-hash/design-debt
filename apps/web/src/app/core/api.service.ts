@@ -99,6 +99,21 @@ export class ApiService {
     }
   }
 
+  async deleteScan(id: string): Promise<void> {
+    this.error.set(null);
+    try {
+      await firstValue<void>(this.http.delete<void>(`${API_BASE}/scans/${id}`));
+      if (this.activeScan()?.id === id) {
+        this.activeScan.set(null);
+        this.results.set(null);
+        this.tokens.set([]);
+      }
+    } catch (error) {
+      this.error.set(apiErrorMessage(error, "Unable to delete scan."));
+      throw error;
+    }
+  }
+
   async copyExport(format: "css" | "json"): Promise<string> {
     const scan = this.activeScan();
     if (!scan) return "";

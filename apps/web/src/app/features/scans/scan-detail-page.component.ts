@@ -1,5 +1,5 @@
 import { Component, OnDestroy, computed, inject, signal } from "@angular/core";
-import { ActivatedRoute, RouterLink } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import type { Finding, ScanSummary, TokenProposal } from "@designdebt/shared";
 import { ApiService } from "../../core/api.service";
 
@@ -23,6 +23,9 @@ import { ApiService } from "../../core/api.service";
             <button class="button secondary" type="button" (click)="retry(active.id)">
               {{ active.status === "completed" ? "Run again" : "Retry" }}
             </button>
+            @if (active.id !== "demo") {
+              <button class="button danger" type="button" (click)="deleteScan(active)">Delete</button>
+            }
           }
         </div>
       </div>
@@ -168,6 +171,7 @@ import { ApiService } from "../../core/api.service";
 export class ScanDetailPageComponent implements OnDestroy {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private pollHandle: number | null = null;
   readonly scan = this.api.activeScan;
   readonly error = signal<string | null>(null);
@@ -211,6 +215,20 @@ export class ScanDetailPageComponent implements OnDestroy {
   async retry(id: string): Promise<void> {
     await this.api.retryScan(id);
     this.syncPolling();
+  }
+
+  async deleteScan(scan: ScanSummary): Promise<void> {
+    const confirmed = window.confirm(`Delete scan for ${scan.rootUrl}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    this.stopPolling();
+    this.error.set(null);
+    try {
+      await this.api.deleteScan(scan.id);
+      await this.router.navigate(["/scans"]);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : "The scan could not be deleted.");
+    }
   }
 
   statusTitle(scan: ScanSummary): string {
