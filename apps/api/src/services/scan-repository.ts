@@ -7,7 +7,7 @@ import type {
   ScanStatus,
   ScanSummary,
   TokenProposal,
-} from "@designdebt/shared";
+} from "../../../../packages/shared/src/index.js";
 import { prisma } from "../lib/prisma.js";
 
 export interface PersistedScan extends ScanSummary {

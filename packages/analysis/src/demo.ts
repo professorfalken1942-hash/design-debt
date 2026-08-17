@@ -1,4 +1,4 @@
-import type { ElementSnapshot } from "@designdebt/shared";
+import type { ElementSnapshot } from "../../shared/src/index.js";
 
 export const demoSnapshots: ElementSnapshot[] = [
   { pageUrl: "/", tagName: "body", selector: "body", color: "#111827", backgroundColor: "#ffffff", fontFamily: "Inter, sans-serif", fontSize: "16px", fontWeight: "400", lineHeight: "24px", paddingTop: "0px", paddingRight: "0px", paddingBottom: "0px", paddingLeft: "0px" },

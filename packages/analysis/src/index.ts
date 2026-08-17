@@ -4,7 +4,7 @@ import type {
   Finding,
   InventoryItem,
   TokenProposal,
-} from "@designdebt/shared";
+} from "../../shared/src/index.js";
 import {
   colorSimilarity,
   normalizeColor,

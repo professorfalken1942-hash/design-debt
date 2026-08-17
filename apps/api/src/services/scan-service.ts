@@ -1,4 +1,4 @@
-import type { DesignDebtResults, ScanSummary, TokenProposal } from "@designdebt/shared";
+import type { DesignDebtResults, ScanSummary, TokenProposal } from "../../../../packages/shared/src/index.js";
 import {
   analyzeSnapshots,
   demoResults,
@@ -7,9 +7,9 @@ import {
   exportTokensCss,
   exportTokensJson,
   generateTokenProposals,
-} from "@designdebt/analysis";
+} from "../../../../packages/analysis/src/index.js";
 import type { Prisma } from "@prisma/client";
-import { PlaywrightWebsiteScanner, validatePublicHttpUrl } from "@designdebt/scanner";
+import { PlaywrightWebsiteScanner, validatePublicHttpUrl } from "../../../../packages/scanner/src/index.js";
 import {
   completeScanRecord,
   createScanRecord,

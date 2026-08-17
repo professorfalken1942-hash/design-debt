@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { chromium as localChromium } from "playwright";
-import type { ElementSnapshot } from "@designdebt/shared";
+import type { ElementSnapshot } from "../../shared/src/index.js";
 import { shouldCrawlLink, validatePublicHttpUrl } from "./url-validation.js";
 
 export { shouldCrawlLink, validatePublicHttpUrl } from "./url-validation.js";
