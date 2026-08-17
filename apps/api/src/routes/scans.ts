@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  compareScans,
   createScan,
   deleteScan,
   exportTokens,
@@ -20,6 +21,11 @@ const createScanSchema = z.object({
   maxPages: z.number().int().min(1).max(50).default(20),
 });
 
+const compareScansSchema = z.object({
+  baseId: z.string().min(1),
+  targetId: z.string().min(1),
+});
+
 scansRouter.post("/", async (request, response, next) => {
   try {
     const body = createScanSchema.parse(request.body);
@@ -37,6 +43,24 @@ scansRouter.get("/", async (_request, response, next) => {
   try {
     response.json({ scans: await listScans() });
   } catch (error) {
+    next(error);
+  }
+});
+
+scansRouter.get("/compare", async (request, response, next) => {
+  try {
+    const query = compareScansSchema.parse(request.query);
+    const comparison = await compareScans(query.baseId, query.targetId);
+    if (!comparison) {
+      response.status(404).json({ error: "Both scans must exist and be completed before they can be compared." });
+      return;
+    }
+    response.json(comparison);
+  } catch (error) {
+    if (error instanceof ScanInputError) {
+      response.status(400).json({ error: error.message });
+      return;
+    }
     next(error);
   }
 });

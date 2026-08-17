@@ -1,4 +1,12 @@
-import type { DesignDebtResults, ScanSummary, TokenProposal } from "../../../../packages/shared/src/index.js";
+import type {
+  DesignDebtResults,
+  Finding,
+  FindingChange,
+  MetricDelta,
+  ScanComparison,
+  ScanSummary,
+  TokenProposal,
+} from "../../../../packages/shared/src/index.js";
 import {
   analyzeSnapshots,
   demoResults,
@@ -18,6 +26,7 @@ import {
   getPersistedResults,
   getPersistedTokens,
   getScanRecord,
+  getScanWithResults,
   listScanRecords,
   markScanRunning,
   replacePersistedTokens,
@@ -95,6 +104,32 @@ export async function getResults(id: string): Promise<DesignDebtResults | null> 
 export async function getTokens(id: string): Promise<TokenProposal[] | null> {
   await ensureDemoScan();
   return getPersistedTokens(id);
+}
+
+export async function compareScans(baseId: string, targetId: string): Promise<ScanComparison | null> {
+  await ensureDemoScan();
+  if (baseId === targetId) {
+    throw new ScanInputError("Choose two different scans to compare.");
+  }
+
+  const [base, target] = await Promise.all([
+    getScanWithResults(baseId),
+    getScanWithResults(targetId),
+  ]);
+  if (!base || !target) return null;
+
+  const metricDeltas = buildMetricDeltas(base.results, target.results);
+  const findingChanges = compareFindings(base.results.findings, target.results.findings);
+  const scoreDelta = target.results.healthScore - base.results.healthScore;
+
+  return {
+    baseScan: base.scan,
+    targetScan: target.scan,
+    scoreDelta,
+    metricDeltas,
+    ...findingChanges,
+    summary: comparisonSummary(scoreDelta, findingChanges.addedFindings.length, findingChanges.resolvedFindings.length),
+  };
 }
 
 export async function updateTokens(
@@ -184,3 +219,58 @@ function isServerlessRuntime(): boolean {
 }
 
 export class ScanInputError extends Error {}
+
+function buildMetricDeltas(base: DesignDebtResults, target: DesignDebtResults): MetricDelta[] {
+  return [
+    metricDelta("Unique colors", base.metrics.uniqueColors, target.metrics.uniqueColors),
+    metricDelta("Typography styles", base.metrics.typographyStyles, target.metrics.typographyStyles),
+    metricDelta("Spacing values", base.metrics.spacingValues, target.metrics.spacingValues),
+    metricDelta("Button patterns", base.metrics.buttonPatterns, target.metrics.buttonPatterns),
+    metricDelta("Potential inconsistencies", base.metrics.potentialInconsistencies, target.metrics.potentialInconsistencies),
+  ];
+}
+
+function metricDelta(label: string, before: number, after: number): MetricDelta {
+  const delta = after - before;
+  return {
+    label,
+    before,
+    after,
+    delta,
+    direction: delta > 0 ? "up" : delta < 0 ? "down" : "flat",
+  };
+}
+
+function compareFindings(baseFindings: Finding[], targetFindings: Finding[]) {
+  const base = new Map(baseFindings.map((finding) => [finding.id, finding]));
+  const target = new Map(targetFindings.map((finding) => [finding.id, finding]));
+
+  const addedFindings = targetFindings.filter((finding) => !base.has(finding.id)).map(toFindingChange);
+  const resolvedFindings = baseFindings.filter((finding) => !target.has(finding.id)).map(toFindingChange);
+  const persistentFindings = targetFindings.filter((finding) => base.has(finding.id)).map(toFindingChange);
+
+  return { addedFindings, resolvedFindings, persistentFindings };
+}
+
+function toFindingChange(finding: Finding): FindingChange {
+  return {
+    id: finding.id,
+    title: finding.title,
+    category: finding.category,
+    severity: finding.severity,
+    count: finding.count,
+  };
+}
+
+function comparisonSummary(scoreDelta: number, added: number, resolved: number): string {
+  if (scoreDelta > 0 && resolved >= added) {
+    return `Health improved by ${scoreDelta} points with ${resolved} resolved findings.`;
+  }
+  if (scoreDelta < 0) {
+    return `Health dropped by ${Math.abs(scoreDelta)} points; review ${added} new findings before exporting tokens.`;
+  }
+  if (added || resolved) {
+    return `Health is flat, but findings changed: ${added} added and ${resolved} resolved.`;
+  }
+  return "No meaningful design health movement between these scans.";
+}

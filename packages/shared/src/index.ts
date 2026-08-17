@@ -86,6 +86,33 @@ export interface DesignDebtResults {
   };
 }
 
+export interface MetricDelta {
+  label: string;
+  before: number;
+  after: number;
+  delta: number;
+  direction: "up" | "down" | "flat";
+}
+
+export interface FindingChange {
+  id: string;
+  title: string;
+  category: Finding["category"];
+  severity: Finding["severity"];
+  count: number;
+}
+
+export interface ScanComparison {
+  baseScan: ScanSummary;
+  targetScan: ScanSummary;
+  scoreDelta: number;
+  metricDeltas: MetricDelta[];
+  addedFindings: FindingChange[];
+  resolvedFindings: FindingChange[];
+  persistentFindings: FindingChange[];
+  summary: string;
+}
+
 export interface TokenProposal {
   id: string;
   name: string;

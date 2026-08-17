@@ -28,6 +28,16 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
           <button class="button primary" type="button" (click)="api.loadDemo()">View demo scan</button>
         </section>
       } @else {
+        <section class="section metrics-grid">
+          @for (summary of findingSummary(); track summary.label) {
+            <article class="metric">
+              <span>{{ summary.label }}</span>
+              <strong>{{ summary.value }}</strong>
+              <p style="color:var(--muted); line-height:1.45; margin:.45rem 0 0;">{{ summary.copy }}</p>
+            </article>
+          }
+        </section>
+
         @if (api.results()?.findings?.length) {
           <section class="section detail-grid">
             <article class="panel" style="padding:1rem;">
@@ -46,7 +56,7 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                     [class.active]="selectedFinding()?.id === finding.id"
                     (click)="selectFinding(finding)"
                   >
-                    <span>{{ label(finding.category) }} · {{ finding.severity }}</span>
+                    <span>{{ priorityLabel(finding) }} · {{ label(finding.category) }}</span>
                     <strong>{{ finding.title }}</strong>
                     <small>{{ finding.description }}</small>
                   </button>
@@ -62,6 +72,8 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                 <div class="scan-facts" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
                   <div><span>Severity</span><strong>{{ finding.severity }}</strong></div>
                   <div><span>Detected</span><strong>{{ finding.count }}</strong></div>
+                  <div><span>Category</span><strong>{{ label(finding.category) }}</strong></div>
+                  <div><span>Priority</span><strong>{{ priorityLabel(finding) }}</strong></div>
                 </div>
                 <div class="explain-box">
                   <strong>Why this was flagged</strong>
@@ -70,6 +82,10 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                 <div class="explain-box">
                   <strong>Recommended action</strong>
                   <p>{{ recommendedAction(finding) }}</p>
+                </div>
+                <div class="explain-box">
+                  <strong>Acceptance check</strong>
+                  <p>{{ acceptanceCheck(finding) }}</p>
                 </div>
                 <div class="finding-list">
                   @for (example of findingExamples(finding); track example.pageUrl + example.selector) {
@@ -151,6 +167,29 @@ export class DesignDebtPageComponent {
   });
   readonly items = computed(() => this.api.results()?.inventories[this.activeCategory()] ?? []);
 
+  findingSummary() {
+    const findings = this.api.results()?.findings ?? [];
+    const warningCount = findings.filter((finding) => finding.severity === "warning").length;
+    const categories = new Set(findings.map((finding) => finding.category)).size;
+    return [
+      {
+        label: "Open findings",
+        value: findings.length,
+        copy: "Signals worth reviewing before token export.",
+      },
+      {
+        label: "Warnings",
+        value: warningCount,
+        copy: "Likely drift with higher design-system impact.",
+      },
+      {
+        label: "Categories touched",
+        value: categories,
+        copy: "Areas of the interface affected by detected variation.",
+      },
+    ];
+  }
+
   selectFinding(finding: Finding): void {
     this.selectedFinding.set(finding);
   }
@@ -180,6 +219,19 @@ export class DesignDebtPageComponent {
     if (finding.category === "spacing") return "Compare each rare value against the nearest spacing step and keep it only when the layout truly needs an exception.";
     if (finding.category === "buttons") return "Choose the button variants the product actually needs, then consolidate padding, radius, color, and text styles into component tokens.";
     return "Review the examples, decide whether the variation is intentional, and promote repeated decisions into named tokens.";
+  }
+
+  acceptanceCheck(finding: Finding): string {
+    if (finding.category === "colors") return "One canonical color is chosen for each visual role, and near-duplicates are either merged or intentionally named.";
+    if (finding.category === "spacing") return "Rare spacing values are mapped to the closest scale step unless a layout exception is documented.";
+    if (finding.category === "buttons") return "Button variants have clear names, shared primitives, and no one-off padding, radius, or color decisions.";
+    return "The team can explain whether the variation is intentional, reusable, or safe to remove.";
+  }
+
+  priorityLabel(finding: Finding): string {
+    if (finding.severity === "warning") return "High priority";
+    if (finding.severity === "suggestion") return "Review";
+    return "Informational";
   }
 
   label(value: string): string {

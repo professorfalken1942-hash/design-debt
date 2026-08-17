@@ -62,6 +62,14 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
           <div class="progress" style="margin-top:1.1rem;">
             <span [style.width.%]="active.progress"></span>
           </div>
+          <div class="scan-stage-list" aria-label="Scan progress stages">
+            @for (stage of scanStages(active); track stage.label) {
+              <div [class.done]="stage.done" [class.active]="stage.active">
+                <span>{{ stage.label }}</span>
+                <small>{{ stage.copy }}</small>
+              </div>
+            }
+          </div>
           <div class="scan-facts">
             <div><span>Progress</span><strong>{{ active.progress }}%</strong></div>
             <div><span>Pages</span><strong>{{ active.pageCount }}</strong></div>
@@ -112,8 +120,14 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
           </section>
 
           <section class="section action-strip">
-            <a class="button primary" routerLink="/design-debt">Inspect DesignDebt</a>
-            <a class="button secondary" routerLink="/token-forge">Review TokenForge</a>
+            <div>
+              <p class="eyebrow">Next step</p>
+              <h2 style="margin:0;">{{ nextStepTitle() }}</h2>
+            </div>
+            <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+              <a class="button primary" routerLink="/design-debt">Inspect DesignDebt</a>
+              <a class="button secondary" routerLink="/token-forge">Review TokenForge</a>
+            </div>
           </section>
 
           <section class="section detail-grid">
@@ -270,6 +284,41 @@ export class ScanDetailPageComponent implements OnDestroy {
     if (scan.status === "failed") return scan.error ?? "The scanner hit an unrecoverable issue.";
     if (scan.status === "running") return "The crawler is collecting visible styles and same-origin pages.";
     return "The scan has been accepted and will begin shortly.";
+  }
+
+  scanStages(scan: ScanSummary) {
+    return [
+      {
+        label: "Accepted",
+        copy: "The URL passed validation and the scan record is saved.",
+        done: scan.progress >= 1,
+        active: scan.status === "queued",
+      },
+      {
+        label: "Crawling",
+        copy: "The scanner is opening pages and collecting visible styles.",
+        done: scan.progress >= 76,
+        active: scan.status === "running" && scan.progress < 76,
+      },
+      {
+        label: "Analyzing",
+        copy: "Captured values are grouped into findings and token candidates.",
+        done: scan.status === "completed",
+        active: scan.status === "running" && scan.progress >= 76,
+      },
+      {
+        label: "Ready",
+        copy: "Results, inventory, and TokenForge proposals are available.",
+        done: scan.status === "completed",
+        active: scan.status === "completed",
+      },
+    ];
+  }
+
+  nextStepTitle(): string {
+    if (this.reviewTokens().length) return "Review findings, then resolve token proposals";
+    if (this.findings().length) return "Inspect the highest-impact design debt";
+    return "Export or rerun when you are ready";
   }
 
   formatDate(value: string): string {

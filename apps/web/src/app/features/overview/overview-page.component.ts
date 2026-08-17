@@ -69,6 +69,16 @@ import { ApiService } from "../../core/api.service";
         </section>
       }
 
+      <section class="section workflow-grid" aria-label="Audit workflow">
+        @for (step of workflowSteps(); track step.title) {
+          <article class="workflow-card" [class.active]="step.active">
+            <span>{{ step.step }}</span>
+            <strong>{{ step.title }}</strong>
+            <p>{{ step.copy }}</p>
+          </article>
+        }
+      </section>
+
       @if (api.results(); as results) {
         <section class="section insight-grid">
           <article class="metric score-card">
@@ -119,6 +129,37 @@ export class OverviewPageComponent {
   readonly loading = signal(false);
   url = "https://example.com";
   maxPages = 20;
+
+  workflowSteps() {
+    const scan = this.api.activeScan();
+    const hasResults = Boolean(this.api.results());
+    return [
+      {
+        step: "01",
+        title: "Scan",
+        copy: "Collect visible UI decisions from rendered pages.",
+        active: !scan || scan.status === "queued" || scan.status === "running",
+      },
+      {
+        step: "02",
+        title: "Review",
+        copy: "Prioritize drift by impact, frequency, and category.",
+        active: hasResults,
+      },
+      {
+        step: "03",
+        title: "Tokenize",
+        copy: "Approve primitives and semantic roles before export.",
+        active: hasResults && this.api.tokens().some((token) => token.status === "needs-review"),
+      },
+      {
+        step: "04",
+        title: "Export",
+        copy: "Copy CSS or JSON once the token set looks intentional.",
+        active: hasResults && this.api.tokens().every((token) => token.status !== "needs-review"),
+      },
+    ];
+  }
 
   async loadDemo() {
     await this.api.loadDemo();

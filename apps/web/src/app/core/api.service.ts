@@ -1,6 +1,6 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, computed, inject, signal } from "@angular/core";
-import type { DesignDebtResults, ScanSummary, TokenProposal } from "@designdebt/shared";
+import type { DesignDebtResults, ScanComparison, ScanSummary, TokenProposal } from "@designdebt/shared";
 
 const API_BASE = "/api";
 
@@ -53,6 +53,14 @@ export class ApiService {
       this.http.get<{ scans: ScanSummary[] }>(`${API_BASE}/scans`),
     );
     return response.scans;
+  }
+
+  async compareScans(baseId: string, targetId: string): Promise<ScanComparison> {
+    return firstValue<ScanComparison>(
+      this.http.get<ScanComparison>(`${API_BASE}/scans/compare`, {
+        params: { baseId, targetId },
+      }),
+    );
   }
 
   async loadScan(id: string): Promise<void> {

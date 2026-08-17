@@ -28,6 +28,20 @@ import { ApiService } from "../../core/api.service";
           <article class="metric"><span>Semantic roles</span><strong>{{ semanticTokens().length }}</strong></article>
         </section>
 
+        <section class="section panel section-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Export readiness</p>
+              <h2 style="margin:0;">{{ readinessTitle() }}</h2>
+            </div>
+            <span class="badge">{{ statusCount('needs-review') }} review</span>
+          </div>
+          <div class="readiness-bar" aria-label="Token review progress">
+            <span [style.width.%]="readinessPercent()"></span>
+          </div>
+          <p class="token-rationale" style="margin-top:.8rem;">{{ readinessCopy() }}</p>
+        </section>
+
         <section class="section action-strip">
           <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
             <button class="button primary" type="button" (click)="save()">Save changes</button>
@@ -45,11 +59,16 @@ import { ApiService } from "../../core/api.service";
               <p class="eyebrow">Review queue</p>
               <h2 style="margin:0;">Approve the system you want to export</h2>
             </div>
-            <button class="button secondary" type="button" (click)="approveReviewed()">Approve reviewed</button>
+            <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+              <button class="button secondary" type="button" (click)="filter = 'needs-review'">Needs review</button>
+              <button class="button secondary" type="button" (click)="filter = 'enabled'">Enabled</button>
+              <button class="button secondary" type="button" (click)="filter = 'all'">All</button>
+              <button class="button secondary" type="button" (click)="approveReviewed()">Approve reviewed</button>
+            </div>
           </div>
 
           <div class="token-review-grid" style="margin-top:1rem;">
-            @for (token of reviewQueue(); track token.id) {
+            @for (token of filteredTokens().slice(0, 12); track token.id) {
               <article class="token-card">
                 <header>
                   <div>
@@ -147,6 +166,7 @@ import { ApiService } from "../../core/api.service";
 export class TokenForgePageComponent {
   readonly api = inject(ApiService);
   message = "";
+  filter: "needs-review" | "enabled" | "disabled" | "all" = "needs-review";
 
   primitiveTokens(): TokenProposal[] {
     return this.api.tokens().filter((token) => token.type === "primitive");
@@ -158,6 +178,11 @@ export class TokenForgePageComponent {
 
   reviewQueue(): TokenProposal[] {
     return this.api.tokens().filter((token) => token.status !== "enabled").slice(0, 6);
+  }
+
+  filteredTokens(): TokenProposal[] {
+    if (this.filter === "all") return this.api.tokens();
+    return this.api.tokens().filter((token) => token.status === this.filter);
   }
 
   statusCount(status: TokenProposal["status"]): number {
@@ -177,6 +202,25 @@ export class TokenForgePageComponent {
       return `${token.value} appeared ${token.uses} times across margin, padding, or gap values. Promote it when it belongs to the spacing scale; disable it if it is a one-off layout exception.`;
     }
     return `${token.value} appeared ${token.uses} times and may deserve a named token if the usage is intentional.`;
+  }
+
+  readinessPercent(): number {
+    const total = this.api.tokens().length;
+    if (!total) return 0;
+    return Math.round((this.statusCount("enabled") / total) * 100);
+  }
+
+  readinessTitle(): string {
+    const review = this.statusCount("needs-review");
+    if (!review) return "Ready to export";
+    if (review <= 3) return "Almost ready";
+    return "Review decisions first";
+  }
+
+  readinessCopy(): string {
+    const review = this.statusCount("needs-review");
+    if (!review) return "All token proposals have a decision. Export CSS or JSON, or keep refining names before saving.";
+    return `${review} token proposals still need a human decision. Approve repeated values, disable one-offs, and keep semantic roles only when the name reflects product intent.`;
   }
 
   setStatus(token: TokenProposal, status: TokenProposal["status"]): void {

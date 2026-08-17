@@ -192,6 +192,18 @@ export async function getPersistedResults(scanId: string): Promise<DesignDebtRes
   return (scan?.analysis as unknown as DesignDebtResults | null) ?? null;
 }
 
+export async function getScanWithResults(
+  scanId: string,
+): Promise<{ scan: PersistedScan; results: DesignDebtResults } | null> {
+  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
+  if (!scan || scan.status !== "completed" || !scan.analysis) return null;
+
+  return {
+    scan: toScanSummary(scan),
+    results: scan.analysis as unknown as DesignDebtResults,
+  };
+}
+
 export async function getPersistedTokens(scanId: string): Promise<TokenProposal[] | null> {
   const scan = await prisma.scan.findUnique({
     where: { id: scanId },
