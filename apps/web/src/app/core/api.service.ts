@@ -37,9 +37,12 @@ export class ApiService {
         this.http.post<ScanSummary>(`${API_BASE}/scans`, { rootUrl, maxPages }),
       );
       this.activeScan.set(scan);
+      if (scan.status === "failed" && scan.error) {
+        this.error.set(scan.error);
+      }
       this.pollScan(scan.id);
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : "Unable to start scan.");
+      this.error.set(apiErrorMessage(error, "Unable to start scan."));
     } finally {
       this.loading.set(false);
     }
@@ -90,7 +93,7 @@ export class ApiService {
       this.tokens.set([]);
       this.pollScan(scan.id);
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : "Unable to retry scan.");
+      this.error.set(apiErrorMessage(error, "Unable to retry scan."));
     } finally {
       this.loading.set(false);
     }
@@ -112,6 +115,19 @@ export class ApiService {
       }
     }, 1400);
   }
+}
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object") {
+    const maybe = error as { error?: unknown; message?: unknown; status?: unknown };
+    if (maybe.error && typeof maybe.error === "object" && "error" in maybe.error) {
+      const message = (maybe.error as { error?: unknown }).error;
+      if (typeof message === "string") return message;
+    }
+    if (typeof maybe.message === "string") return maybe.message;
+    if (typeof maybe.status === "number") return `${fallback} (${maybe.status})`;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 function firstValue<T>(source: { subscribe: (observer: { next: (value: T) => void; error: (error: unknown) => void }) => { unsubscribe: () => void } }): Promise<T> {

@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@designdebt/shared": "0.1.0",
-    "playwright": "^1.54.2"
+    "@sparticuz/chromium": "^149.0.0",
+    "playwright": "^1.54.2",
+    "playwright-core": "^1.62.1"
   },
   "devDependencies": {
     "@types/node": "^20.19.10",

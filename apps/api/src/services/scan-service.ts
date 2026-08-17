@@ -65,8 +65,7 @@ export async function createScan(rootUrl: string, maxPages: number): Promise<Per
   }
 
   const scan = await createScanRecord(validation.normalizedUrl, maxPages);
-  void executeScan(scan.id);
-  return scan;
+  return startExecution(scan);
 }
 
 export async function listScans(): Promise<PersistedScan[]> {
@@ -114,8 +113,7 @@ export async function retryScan(id: string): Promise<PersistedScan | null> {
 
   const scan = await resetScanRecord(id);
   if (!scan) return null;
-  void executeScan(scan.id);
-  return scan;
+  return startExecution(scan);
 }
 
 export async function exportTokens(
@@ -135,7 +133,8 @@ async function executeScan(scanId: string): Promise<void> {
 
   try {
     const scanResult = await scanner.scan(scan.rootUrl, {
-      maxPages: scan.maxPages,
+      maxPages: isServerlessRuntime() ? Math.min(scan.maxPages, 3) : scan.maxPages,
+      timeoutMs: isServerlessRuntime() ? 12_000 : undefined,
     });
     await setScanProgress(scanId, 76);
     const snapshots = scanResult.snapshots.length ? scanResult.snapshots : demoSnapshots;
@@ -156,6 +155,20 @@ async function executeScan(scanId: string): Promise<void> {
       error instanceof Error ? error.message : "Scan failed.",
     );
   }
+}
+
+async function startExecution(scan: PersistedScan): Promise<PersistedScan> {
+  if (isServerlessRuntime()) {
+    await executeScan(scan.id);
+    return (await getScanRecord(scan.id)) ?? scan;
+  }
+
+  void executeScan(scan.id);
+  return scan;
+}
+
+function isServerlessRuntime(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV);
 }
 
 export class ScanInputError extends Error {}

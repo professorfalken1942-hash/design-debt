@@ -1,5 +1,6 @@
-import type { Browser, Page } from "playwright";
-import { chromium } from "playwright";
+import path from "node:path";
+import type { Browser, Page } from "playwright-core";
+import { chromium as localChromium } from "playwright";
 import type { ElementSnapshot } from "@designdebt/shared";
 import { shouldCrawlLink, validatePublicHttpUrl } from "./url-validation.js";
 
@@ -32,13 +33,38 @@ export class PlaywrightWebsiteScanner implements WebsiteScanner {
       normalizedUrl = validation.normalizedUrl;
     }
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     try {
       return await crawl(browser, normalizedUrl, options);
     } finally {
       await browser.close();
     }
   }
+}
+
+async function launchBrowser(): Promise<Browser> {
+  if (isServerlessRuntime()) {
+    const [{ chromium }, chromiumPackage] = await Promise.all([
+      import("playwright-core"),
+      import("@sparticuz/chromium"),
+    ]);
+    const serverlessChromium = chromiumPackage.default;
+    const executablePath = await serverlessChromium.executablePath();
+    const executableDir = path.dirname(executablePath);
+    process.env.LD_LIBRARY_PATH = [process.env.LD_LIBRARY_PATH, executableDir].filter(Boolean).join(":");
+
+    return chromium.launch({
+      args: serverlessChromium.args,
+      executablePath,
+      headless: true,
+    });
+  }
+
+  return localChromium.launch({ headless: true });
+}
+
+function isServerlessRuntime(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV);
 }
 
 async function crawl(
