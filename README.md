@@ -42,7 +42,12 @@ Required Vercel environment variables:
 - `DATABASE_URL`
 - `WEB_ORIGIN` set to the production site origin
 
-The API workspace runs `prisma generate` before TypeScript builds so fresh Vercel installs have the correct Prisma client.
+The Vercel build runs `prisma migrate deploy`, then type-checks the API function entry, then builds the workspaces. This keeps the hosted database schema in sync with the deployed API.
+
+Useful live diagnostics:
+
+- `/api/health`
+- `/api/health/db`
 
 ## Database
 

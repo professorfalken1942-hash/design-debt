@@ -23,6 +23,10 @@ export interface CompleteScanInput {
   warnings: string[];
 }
 
+export async function checkDatabaseConnection(): Promise<void> {
+  await prisma.$queryRaw`SELECT 1`;
+}
+
 export async function createScanRecord(
   rootUrl: string,
   maxPages: number,

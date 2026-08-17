@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build:vercel-api && npm run build --workspaces --if-present",
+  "buildCommand": "npm run db:deploy && npm run build:vercel-api && npm run build --workspaces --if-present",
   "outputDirectory": "apps/web/dist/web/browser",
   "installCommand": "npm install",
   "functions": {

@@ -14,7 +14,8 @@
     "build:vercel-api": "tsc -p tsconfig.vercel.json",
     "test": "npm run test --workspaces --if-present",
     "db:generate": "npm run db:generate --workspace @designdebt/api",
-    "db:migrate": "npm run db:migrate --workspace @designdebt/api"
+    "db:migrate": "npm run db:migrate --workspace @designdebt/api",
+    "db:deploy": "npm run db:deploy --workspace @designdebt/api"
   },
   "devDependencies": {
     "typescript": "^6.0.0"
