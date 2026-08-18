@@ -10,8 +10,8 @@ import { ApiService } from "../../core/api.service";
   template: `
     <section class="page">
       <p class="eyebrow">Tokens</p>
-      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:0; margin:.2rem 0;">Generate a cleaner token system.</h1>
-      <p class="lede">UIpen turns what the scan found into a practical starting point: reusable values, clearer roles, and a review queue you can shape before anything gets exported.</p>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:0; margin:.2rem 0;">Turn repeated UI values into tokens.</h1>
+      <p class="lede">UIpen turns scan evidence into named color and spacing decisions that teams can copy into code, docs, or a design system.</p>
 
       @if (!api.tokens().length) {
         <section class="section panel" style="padding:1.2rem;">
@@ -28,13 +28,37 @@ import { ApiService } from "../../core/api.service";
           <article class="metric"><span>Semantic roles</span><strong>{{ semanticTokens().length }}</strong></article>
         </section>
 
+        <section class="section token-intro-grid">
+          <article class="token-guide panel">
+            <span>What this page does</span>
+            <h2>Review proposed design tokens before you export them</h2>
+            <p>
+              A token is a named design value, like <code>color.brand.500</code> or <code>space.4</code>. Instead of hard-coding the same blue or gap across screens, teams reuse the token name so product UI stays consistent.
+            </p>
+          </article>
+          <article class="token-guide panel">
+            <span>What export means</span>
+            <h2>Copy the included tokens as CSS or JSON</h2>
+            <p>
+              The export is the token set produced by the two copy buttons. CSS variables are ready for stylesheets. JSON is better for design tools, build pipelines, or documentation.
+            </p>
+          </article>
+          <article class="token-guide panel">
+            <span>How to use it</span>
+            <h2>Include reusable values, exclude one-offs</h2>
+            <p>
+              Use the review queue to decide which detected values belong in the system. Rename tokens when the intent is clearer than the raw value, then save your decisions before copying an export.
+            </p>
+          </article>
+        </section>
+
         <section class="section panel section-panel">
           <div class="section-title">
             <div>
-              <p class="eyebrow">Export readiness</p>
+              <p class="eyebrow">Token export</p>
               <h2 style="margin:0;">{{ readinessTitle() }}</h2>
             </div>
-            <span class="badge">{{ statusCount('needs-review') }} need decisions</span>
+            <span class="badge">{{ exportableCount() }} included</span>
           </div>
           <div class="readiness-bar" aria-label="Token review progress">
             <span [style.width.%]="readinessPercent()"></span>
@@ -43,10 +67,14 @@ import { ApiService } from "../../core/api.service";
         </section>
 
         <section class="section action-strip">
+          <div>
+            <strong>Export included tokens</strong>
+            <p class="token-rationale">These copy actions are the export. They include only tokens marked “Included in export.”</p>
+          </div>
           <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
             <button class="button primary" type="button" (click)="save()">Save changes</button>
-            <button class="button secondary" type="button" (click)="copy('css')">Copy CSS variables</button>
-            <button class="button secondary" type="button" (click)="copy('json')">Copy JSON</button>
+            <button class="button secondary" type="button" (click)="copy('css')" [disabled]="!exportableCount()">Export CSS variables</button>
+            <button class="button secondary" type="button" (click)="copy('json')" [disabled]="!exportableCount()">Export JSON</button>
           </div>
           @if (message) {
             <span class="badge">{{ message }}</span>
@@ -59,7 +87,7 @@ import { ApiService } from "../../core/api.service";
               <p class="eyebrow">Review queue</p>
               <h2 style="margin:0;">Decide what goes into the exported token set</h2>
               <p class="token-rationale" style="margin-top:.45rem;">
-                Approving a token includes it in CSS and JSON exports. Keeping it in review leaves it visible here. Excluding it removes it from exports.
+                Including a token adds it to CSS and JSON exports. Keeping it in review leaves it visible here but out of exports. Excluding it documents the rejected proposal.
               </p>
             </div>
             <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
@@ -203,6 +231,10 @@ export class TokenForgePageComponent {
     return this.api.tokens().filter((token) => token.status === status).length;
   }
 
+  exportableCount(): number {
+    return this.statusCount("enabled");
+  }
+
   rationale(token: TokenProposal): string {
     const confidence = token.confidence ?? "low";
     if (token.type === "semantic") {
@@ -226,15 +258,16 @@ export class TokenForgePageComponent {
 
   readinessTitle(): string {
     const review = this.statusCount("needs-review");
-    if (!review) return "Ready to export";
-    if (review <= 3) return "Almost ready";
-    return "Review decisions first";
+    if (!review) return "Included set is ready";
+    if (review <= 3) return "Almost ready to copy";
+    return "Decide what belongs in the export";
   }
 
   readinessCopy(): string {
     const review = this.statusCount("needs-review");
-    if (!review) return "All token proposals have a decision. Export CSS or JSON, or keep refining names before saving.";
-    return `${review} token proposals still need a decision. Include repeated values, exclude one-offs, and keep semantic roles only when the name reflects product intent.`;
+    const included = this.exportableCount();
+    if (!review) return `${included} tokens are included. Save your edits, then export CSS variables for app styling or JSON for design-system tooling.`;
+    return `${included} tokens are included and ${review} still need review. Only included tokens are copied into CSS or JSON, so the export stays intentional.`;
   }
 
   statusLabel(status: TokenProposal["status"]): string {
@@ -244,8 +277,8 @@ export class TokenForgePageComponent {
   }
 
   decisionCopy(token: TokenProposal): string {
-    if (token.status === "enabled") return "This proposal will be included when you copy CSS variables or JSON.";
-    if (token.status === "disabled") return "This proposal will stay saved here but will not appear in exported tokens.";
+    if (token.status === "enabled") return "This proposal will be included when you export CSS variables or JSON.";
+    if (token.status === "disabled") return "This proposal will stay saved here but will not appear in the export.";
     if (token.type === "semantic") return "Confirm whether this role name matches product intent before including it.";
     return "Decide whether this detected value is a reusable token or a one-off implementation detail.";
   }
@@ -269,6 +302,6 @@ export class TokenForgePageComponent {
 
   async copy(format: "css" | "json") {
     await navigator.clipboard.writeText(await this.api.copyExport(format));
-    this.message = `${format.toUpperCase()} copied`;
+    this.message = `${format === "css" ? "CSS variables" : "JSON"} exported`;
   }
 }
