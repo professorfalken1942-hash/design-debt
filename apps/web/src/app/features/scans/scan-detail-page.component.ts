@@ -14,7 +14,7 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
         <div>
           <a routerLink="/scans" style="color:var(--muted); text-decoration:none;">Back to scans</a>
           <p class="eyebrow">Scan Detail</p>
-          <h1 style="font-size:clamp(1.8rem,4vw,3rem); letter-spacing:-.03em; margin:.2rem 0;">
+          <h1 style="font-size:clamp(1.8rem,4vw,3rem); letter-spacing:0; margin:.2rem 0;">
             {{ scan()?.rootUrl ?? "Loading scan" }}
           </h1>
         </div>

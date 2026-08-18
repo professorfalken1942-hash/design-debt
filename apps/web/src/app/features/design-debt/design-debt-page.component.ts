@@ -1,6 +1,7 @@
-import { Component, computed, inject, signal } from "@angular/core";
+import { Component, OnDestroy, computed, inject, signal } from "@angular/core";
 import { ActivatedRoute, RouterLink, RouterLinkActive } from "@angular/router";
 import type { Finding, InventoryItem } from "@designdebt/shared";
+import type { Subscription } from "rxjs";
 import { ApiService } from "../../core/api.service";
 
 const categories = ["colors", "typography", "spacing", "borders", "shadows", "buttons", "forms"] as const;
@@ -12,7 +13,7 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
   template: `
     <section class="page">
       <p class="eyebrow">Audit</p>
-      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.03em; margin:.2rem 0;">Visual inventory and drift</h1>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem); letter-spacing:0; margin:.2rem 0;">Visual inventory and drift</h1>
       <p class="lede">Review detected values, usage counts, examples, and likely inconsistencies across the scanned interface.</p>
 
       <nav class="tabs section" aria-label="Design debt categories">
@@ -154,18 +155,29 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
     </section>
   `,
 })
-export class DesignDebtPageComponent {
+export class DesignDebtPageComponent implements OnDestroy {
   readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly routeSub: Subscription;
   readonly categories = categories;
   readonly selectedFinding = signal<Finding | null>(null);
-  readonly activeCategory = computed(() => {
-    const value = this.route.snapshot.paramMap.get("category");
-    return categories.includes(value as (typeof categories)[number])
-      ? (value as (typeof categories)[number])
-      : "colors";
-  });
+  readonly activeCategory = signal<(typeof categories)[number]>("colors");
   readonly items = computed(() => this.api.results()?.inventories[this.activeCategory()] ?? []);
+
+  constructor() {
+    this.routeSub = this.route.paramMap.subscribe((params) => {
+      const value = params.get("category");
+      this.activeCategory.set(
+        categories.includes(value as (typeof categories)[number])
+          ? (value as (typeof categories)[number])
+          : "colors",
+      );
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.routeSub.unsubscribe();
+  }
 
   findingSummary() {
     const findings = this.api.results()?.findings ?? [];

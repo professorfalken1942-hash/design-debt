@@ -13,7 +13,7 @@ import { ApiService } from "../../core/api.service";
         <div class="hero-copy">
           <span class="badge">Live scanner</span>
           <p class="eyebrow">UIpen</p>
-          <h1 class="headline">Turn messy UI evidence into clear design decisions.</h1>
+          <h1 class="headline">Find the friction.<br>Fix the experience.</h1>
           <p class="lede">
             Scan a site, see where visual decisions drift, and turn repeated colors,
             spacing, type, and component patterns into a reviewable token plan.
