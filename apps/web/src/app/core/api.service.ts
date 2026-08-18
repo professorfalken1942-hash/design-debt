@@ -1,6 +1,6 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, computed, inject, signal } from "@angular/core";
-import type { DesignDebtResults, ScanComparison, ScanSummary, TokenProposal } from "@designdebt/shared";
+import type { BacklogItem, DesignDebtResults, ScanComparison, ScanSummary, TokenProposal } from "@designdebt/shared";
 
 const API_BASE = "/api";
 
@@ -10,6 +10,7 @@ export class ApiService {
   readonly activeScan = signal<ScanSummary | null>(null);
   readonly results = signal<DesignDebtResults | null>(null);
   readonly tokens = signal<TokenProposal[]>([]);
+  readonly backlog = signal<BacklogItem[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly pendingScanUrl = signal<string | null>(null);
@@ -81,9 +82,14 @@ export class ApiService {
       ]);
       this.results.set(results);
       this.tokens.set(tokenResponse.tokens);
+      const backlogResponse = await firstValue<{ backlog: BacklogItem[] }>(
+        this.http.get<{ backlog: BacklogItem[] }>(`${API_BASE}/scans/${id}/backlog`),
+      );
+      this.backlog.set(backlogResponse.backlog);
     } else {
       this.results.set(null);
       this.tokens.set([]);
+      this.backlog.set([]);
     }
   }
 
@@ -121,9 +127,10 @@ export class ApiService {
     try {
       await firstValue<void>(this.http.delete<void>(`${API_BASE}/scans/${id}`));
       if (this.activeScan()?.id === id) {
-        this.activeScan.set(null);
-        this.results.set(null);
-        this.tokens.set([]);
+      this.activeScan.set(null);
+      this.results.set(null);
+      this.tokens.set([]);
+      this.backlog.set([]);
       }
     } catch (error) {
       this.error.set(apiErrorMessage(error, "Unable to delete scan."));
@@ -136,6 +143,16 @@ export class ApiService {
     if (!scan) return "";
     const response = await fetch(`${API_BASE}/scans/${scan.id}/tokens/export?format=${format}`);
     return format === "css" ? response.text() : JSON.stringify(await response.json(), null, 2);
+  }
+
+  async updateBacklogItem(
+    item: BacklogItem,
+    patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
+  ): Promise<void> {
+    const response = await firstValue<{ item: BacklogItem }>(
+      this.http.patch<{ item: BacklogItem }>(`${API_BASE}/scans/${item.scanId}/backlog/${item.id}`, patch),
+    );
+    this.backlog.update((items) => items.map((current) => current.id === response.item.id ? response.item : current));
   }
 
   private pollScan(id: string): void {

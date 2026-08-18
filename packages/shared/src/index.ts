@@ -113,6 +113,24 @@ export interface ScanComparison {
   summary: string;
 }
 
+export type BacklogStatus = "open" | "accepted" | "ignored" | "fixed";
+
+export interface BacklogItem {
+  id: string;
+  scanId: string;
+  sourceType: "finding" | "token-review" | "manual";
+  sourceId: string;
+  title: string;
+  category: Finding["category"] | "tokens";
+  priority: "High" | "Medium" | "Low";
+  status: BacklogStatus;
+  owner: string;
+  notes: string;
+  route: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TokenProposal {
   id: string;
   name: string;

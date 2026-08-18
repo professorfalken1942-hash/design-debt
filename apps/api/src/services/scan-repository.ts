@@ -1,7 +1,8 @@
 import { nanoid } from "nanoid";
-import { Prisma } from "@prisma/client";
 import type {
   DesignDebtResults,
+  BacklogItem,
+  BacklogStatus,
   ElementSnapshot,
   Finding,
   ScanStatus,
@@ -9,6 +10,22 @@ import type {
   TokenProposal,
 } from "../../../../packages/shared/src/index.js";
 import { prisma } from "../lib/prisma.js";
+
+type PrismaTransaction = Omit<
+  typeof prisma,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+type TokenProposalRecord = {
+  id: string;
+  name: string;
+  value: string;
+  type: string;
+  category: string;
+  uses: number;
+  status: string;
+  confidence: string | null;
+  mapsTo: string | null;
+};
 
 export interface PersistedScan extends ScanSummary {
   maxPages: number;
@@ -77,6 +94,7 @@ export async function completeScanRecord(input: CompleteScanInput): Promise<void
     prisma.elementSnapshot.deleteMany({ where: { scanId: input.scanId } }),
     prisma.finding.deleteMany({ where: { scanId: input.scanId } }),
     prisma.tokenProposal.deleteMany({ where: { scanId: input.scanId } }),
+    prisma.backlogItem.deleteMany({ where: { scanId: input.scanId } }),
     prisma.page.createMany({
       data: input.pageUrls.map((url) => ({
         id: nanoid(),
@@ -120,7 +138,7 @@ export async function completeScanRecord(input: CompleteScanInput): Promise<void
         progress: 100,
         healthScore: input.results.healthScore,
         warnings: input.warnings,
-        analysis: input.results as unknown as Prisma.InputJsonValue,
+        analysis: input.results as never,
         error: null,
       },
     }),
@@ -140,7 +158,7 @@ export async function failScanRecord(scanId: string, error: string): Promise<voi
 }
 
 export async function resetScanRecord(scanId: string): Promise<PersistedScan | null> {
-  const scan = await prisma.$transaction(async (transaction) => {
+  const scan = await prisma.$transaction(async (transaction: PrismaTransaction) => {
     const existing = await transaction.scan.findUnique({ where: { id: scanId } });
     if (!existing) return null;
 
@@ -148,6 +166,7 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
     await transaction.elementSnapshot.deleteMany({ where: { scanId } });
     await transaction.finding.deleteMany({ where: { scanId } });
     await transaction.tokenProposal.deleteMany({ where: { scanId } });
+    await transaction.backlogItem.deleteMany({ where: { scanId } });
 
     return transaction.scan.update({
       where: { id: scanId },
@@ -159,7 +178,7 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
         healthScore: null,
         error: null,
         warnings: [],
-        analysis: Prisma.JsonNull,
+        analysis: null as never,
       },
     });
   });
@@ -168,7 +187,7 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
 }
 
 export async function deleteScanRecord(scanId: string): Promise<boolean> {
-  const deleted = await prisma.$transaction(async (transaction) => {
+  const deleted = await prisma.$transaction(async (transaction: PrismaTransaction) => {
     const existing = await transaction.scan.findUnique({ where: { id: scanId } });
     if (!existing) return false;
 
@@ -216,7 +235,7 @@ export async function getPersistedTokens(scanId: string): Promise<TokenProposal[
     orderBy: [{ type: "asc" }, { category: "asc" }, { uses: "desc" }],
   });
 
-  return tokens.map((token) => ({
+  return tokens.map((token: TokenProposalRecord) => ({
     id: token.id,
     name: token.name,
     value: token.value,
@@ -224,7 +243,7 @@ export async function getPersistedTokens(scanId: string): Promise<TokenProposal[
     category: token.category as TokenProposal["category"],
     uses: token.uses,
     status: token.status as TokenProposal["status"],
-    confidence: token.confidence as TokenProposal["confidence"],
+    confidence: (token.confidence ?? "medium") as TokenProposal["confidence"],
     mapsTo: token.mapsTo ?? undefined,
   }));
 }
@@ -246,6 +265,73 @@ export async function replacePersistedTokens(
   return getPersistedTokens(scanId);
 }
 
+export async function getPersistedBacklog(scanId: string): Promise<BacklogItem[] | null> {
+  const scan = await prisma.scan.findUnique({
+    where: { id: scanId },
+    select: { id: true },
+  });
+  if (!scan) return null;
+
+  const backlog = await prisma.backlogItem.findMany({
+    where: { scanId },
+    orderBy: [{ status: "asc" }, { priority: "asc" }, { createdAt: "asc" }],
+  });
+
+  return backlog.map(toBacklogItem);
+}
+
+export async function seedPersistedBacklog(
+  scanId: string,
+  items: Omit<BacklogItem, "id" | "scanId" | "createdAt" | "updatedAt">[],
+): Promise<BacklogItem[] | null> {
+  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
+  if (!scan) return null;
+
+  await prisma.$transaction(
+    items.map((item) =>
+      prisma.backlogItem.upsert({
+        where: {
+          scanId_sourceType_sourceId: {
+            scanId,
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+          },
+        },
+        update: {},
+        create: {
+          id: scopedId(scanId, `backlog-${item.sourceType}-${item.sourceId}`),
+          scanId,
+          ...item,
+        },
+      }),
+    ),
+  );
+
+  return getPersistedBacklog(scanId);
+}
+
+export async function patchPersistedBacklogItem(
+  scanId: string,
+  itemId: string,
+  patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
+): Promise<BacklogItem | null> {
+  const existing = await prisma.backlogItem.findFirst({
+    where: { id: itemId, scanId },
+  });
+  if (!existing) return null;
+
+  const updated = await prisma.backlogItem.update({
+    where: { id: itemId },
+    data: {
+      status: patch.status,
+      owner: patch.owner,
+      notes: patch.notes,
+    },
+  });
+
+  return toBacklogItem(updated);
+}
+
 function toScanSummary(scan: {
   id: string;
   rootUrl: string;
@@ -257,7 +343,7 @@ function toScanSummary(scan: {
   maxPages: number;
   healthScore: number | null;
   error: string | null;
-  warnings: Prisma.JsonValue | null;
+  warnings: unknown;
 }): PersistedScan {
   return {
     id: scan.id,
@@ -273,6 +359,38 @@ function toScanSummary(scan: {
     warnings: Array.isArray(scan.warnings)
       ? scan.warnings.filter((warning): warning is string => typeof warning === "string")
       : [],
+  };
+}
+
+function toBacklogItem(item: {
+  id: string;
+  scanId: string;
+  sourceType: string;
+  sourceId: string;
+  title: string;
+  category: string;
+  priority: string;
+  status: string;
+  owner: string;
+  notes: string;
+  route: string;
+  createdAt: Date;
+  updatedAt: Date;
+}): BacklogItem {
+  return {
+    id: item.id,
+    scanId: item.scanId,
+    sourceType: item.sourceType as BacklogItem["sourceType"],
+    sourceId: item.sourceId,
+    title: item.title,
+    category: item.category as BacklogItem["category"],
+    priority: item.priority as BacklogItem["priority"],
+    status: item.status as BacklogStatus,
+    owner: item.owner,
+    notes: item.notes,
+    route: item.route,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
   };
 }
 

@@ -5,12 +5,14 @@ import {
   createScan,
   deleteScan,
   exportTokens,
+  getBacklog,
   getResults,
   getScan,
   getTokens,
   listScans,
   retryScan,
   ScanInputError,
+  updateBacklogItem,
   updateTokens,
 } from "../services/scan-service.js";
 
@@ -24,6 +26,12 @@ const createScanSchema = z.object({
 const compareScansSchema = z.object({
   baseId: z.string().min(1),
   targetId: z.string().min(1),
+});
+
+const updateBacklogSchema = z.object({
+  status: z.enum(["open", "accepted", "ignored", "fixed"]).optional(),
+  owner: z.string().max(120).optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 scansRouter.post("/", async (request, response, next) => {
@@ -157,6 +165,33 @@ scansRouter.put("/:id/tokens", async (request, response, next) => {
       return;
     }
     response.json({ tokens });
+  } catch (error) {
+    next(error);
+  }
+});
+
+scansRouter.get("/:id/backlog", async (request, response, next) => {
+  try {
+    const backlog = await getBacklog(request.params.id);
+    if (!backlog) {
+      response.status(404).json({ error: "Backlog is not ready." });
+      return;
+    }
+    response.json({ backlog });
+  } catch (error) {
+    next(error);
+  }
+});
+
+scansRouter.patch("/:id/backlog/:itemId", async (request, response, next) => {
+  try {
+    const body = updateBacklogSchema.parse(request.body);
+    const item = await updateBacklogItem(request.params.id, request.params.itemId, body);
+    if (!item) {
+      response.status(404).json({ error: "Backlog item not found." });
+      return;
+    }
+    response.json({ item });
   } catch (error) {
     next(error);
   }

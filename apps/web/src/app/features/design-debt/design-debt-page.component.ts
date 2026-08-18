@@ -1,4 +1,5 @@
 import { Component, OnDestroy, computed, inject, signal } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, RouterLink, RouterLinkActive } from "@angular/router";
 import type { Finding, InventoryItem } from "@designdebt/shared";
 import type { Subscription } from "rxjs";
@@ -9,7 +10,7 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
 @Component({
   selector: "dd-design-debt-page",
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [FormsModule, RouterLink, RouterLinkActive],
   template: `
     <section class="page">
       <p class="eyebrow">Audit</p>
@@ -39,6 +40,56 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
           }
         </section>
 
+        <section class="section category-playbook">
+          <article class="panel playbook-main">
+            <p class="eyebrow">{{ label(activeCategory()) }} playbook</p>
+            <h2>{{ categoryGoal(activeCategory()) }}</h2>
+            <p>{{ categoryWhy(activeCategory()) }}</p>
+          </article>
+          <article class="playbook-card">
+            <span>What to inspect</span>
+            <p>{{ categoryInspection(activeCategory()) }}</p>
+          </article>
+          <article class="playbook-card">
+            <span>Done when</span>
+            <p>{{ categoryDone(activeCategory()) }}</p>
+          </article>
+        </section>
+
+        <section class="section panel section-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Audit filters</p>
+              <h2 style="margin:0;">Narrow the review surface</h2>
+            </div>
+            <span class="badge">{{ filteredFindings().length }} findings · {{ filteredItems().length }} patterns</span>
+          </div>
+          <div class="audit-filter-grid">
+            <label class="field">
+              <span>Severity</span>
+              <select class="select" [ngModel]="severityFilter()" (ngModelChange)="severityFilter.set($event)">
+                <option value="all">All severities</option>
+                <option value="warning">Warnings</option>
+                <option value="suggestion">Suggestions</option>
+                <option value="info">Info</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Page</span>
+              <select class="select" [ngModel]="pageFilter()" (ngModelChange)="pageFilter.set($event)">
+                <option value="all">All pages</option>
+                @for (page of availablePages(); track page) {
+                  <option [value]="page">{{ page }}</option>
+                }
+              </select>
+            </label>
+            <label class="toggle-field">
+              <input type="checkbox" [ngModel]="tokenCandidateOnly()" (ngModelChange)="tokenCandidateOnly.set($event)" />
+              <span>Token candidates only</span>
+            </label>
+          </div>
+        </section>
+
         @if (api.results()?.findings?.length) {
           <section class="section detail-grid">
             <article class="panel" style="padding:1rem;">
@@ -50,7 +101,7 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                 <span class="badge">{{ api.results()?.findings?.length }} signals</span>
               </div>
               <div class="finding-list">
-                @for (finding of api.results()?.findings; track finding.id) {
+                @for (finding of filteredFindings(); track finding.id) {
                   <button
                     class="finding-row finding-button"
                     type="button"
@@ -111,9 +162,27 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
           <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
             <div>
               <p class="eyebrow">{{ label(activeCategory()) }}</p>
-              <h2 style="margin:0;">{{ items().length }} detected patterns</h2>
+              <h2 style="margin:0;">{{ filteredItems().length }} detected patterns</h2>
+              <p class="token-rationale" style="margin-top:.45rem;">{{ inventoryHelp(activeCategory()) }}</p>
             </div>
             <span class="badge">Sortable inventory</span>
+          </div>
+
+          <div class="visual-evidence-grid">
+            @for (item of filteredItems().slice(0, 4); track item.normalizedValue) {
+              <article class="visual-evidence-card">
+                <div class="evidence-preview" [style.background]="activeCategory() === 'colors' ? item.normalizedValue : ''">
+                  @if (activeCategory() !== 'colors') {
+                    <strong>{{ item.normalizedValue }}</strong>
+                  }
+                </div>
+                <div>
+                  <span>{{ item.count }} uses · {{ item.pages.length }} pages</span>
+                  <strong>{{ item.normalizedValue }}</strong>
+                  <p>{{ evidenceCopy(item) }}</p>
+                </div>
+              </article>
+            }
           </div>
 
           <div class="table-wrap">
@@ -127,7 +196,7 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                 </tr>
               </thead>
               <tbody>
-                @for (item of items(); track item.normalizedValue) {
+                @for (item of filteredItems(); track item.normalizedValue) {
                   <tr>
                     <td data-label="Value">
                       @if (activeCategory() === 'colors') {
@@ -162,7 +231,27 @@ export class DesignDebtPageComponent implements OnDestroy {
   readonly categories = categories;
   readonly selectedFinding = signal<Finding | null>(null);
   readonly activeCategory = signal<(typeof categories)[number]>("colors");
+  readonly severityFilter = signal<Finding["severity"] | "all">("all");
+  readonly pageFilter = signal("all");
+  readonly tokenCandidateOnly = signal(false);
   readonly items = computed(() => this.api.results()?.inventories[this.activeCategory()] ?? []);
+  readonly filteredItems = computed(() =>
+    this.items().filter((item) => {
+      if (this.pageFilter() !== "all" && !item.pages.includes(this.pageFilter())) return false;
+      if (this.tokenCandidateOnly() && !this.isTokenCandidate(item)) return false;
+      return true;
+    }),
+  );
+  readonly filteredFindings = computed(() =>
+    (this.api.results()?.findings ?? []).filter((finding) => {
+      if (this.severityFilter() !== "all" && finding.severity !== this.severityFilter()) return false;
+      if (finding.category !== this.activeCategory() && finding.targetView !== this.activeCategory()) return false;
+      if (this.pageFilter() !== "all") {
+        return this.findingExamples(finding).some((example) => example.pageUrl === this.pageFilter());
+      }
+      return true;
+    }),
+  );
 
   constructor() {
     this.routeSub = this.route.paramMap.subscribe((params) => {
@@ -172,6 +261,7 @@ export class DesignDebtPageComponent implements OnDestroy {
           ? (value as (typeof categories)[number])
           : "colors",
       );
+      this.selectedFinding.set(null);
     });
   }
 
@@ -213,6 +303,23 @@ export class DesignDebtPageComponent implements OnDestroy {
     return this.api.results()?.inventories[category].flatMap((item: InventoryItem) => item.examples).slice(0, 6) ?? [];
   }
 
+  availablePages(): string[] {
+    return [...new Set(this.items().flatMap((item) => item.pages))].sort();
+  }
+
+  isTokenCandidate(item: InventoryItem): boolean {
+    if (this.activeCategory() === "colors") return item.count >= 2;
+    if (this.activeCategory() === "spacing") return item.count >= 3;
+    if (this.activeCategory() === "typography") return item.count >= 2;
+    return item.count >= 2;
+  }
+
+  evidenceCopy(item: InventoryItem): string {
+    const example = item.examples[0];
+    const source = example?.selector ?? example?.tagName ?? "captured element";
+    return `Example: ${source} on ${item.pages[0] ?? "the scanned site"}.`;
+  }
+
   whyFlagged(finding: Finding): string {
     if (finding.id === "similar-colors") {
       return "Multiple colors are visually close enough that users may read them as the same role, while engineers have to maintain them as separate values.";
@@ -244,6 +351,49 @@ export class DesignDebtPageComponent implements OnDestroy {
     if (finding.severity === "warning") return "High priority";
     if (finding.severity === "suggestion") return "Review";
     return "Informational";
+  }
+
+  categoryGoal(category: string): string {
+    if (category === "colors") return "Reduce color drift into clear roles";
+    if (category === "typography") return "Identify the type styles that should become standards";
+    if (category === "spacing") return "Find the spacing scale hiding in the UI";
+    if (category === "borders") return "Normalize radius and border treatment";
+    if (category === "shadows") return "Keep elevation meaningful instead of decorative";
+    if (category === "buttons") return "Collapse one-off buttons into reusable variants";
+    return "Make form controls consistent enough to reuse";
+  }
+
+  categoryWhy(category: string): string {
+    if (category === "colors") return "Too many nearby colors make themes harder to maintain and weaken product meaning. The goal is to pick canonical primitives and semantic roles.";
+    if (category === "typography") return "Type drift makes pages feel assembled from different systems. Look for repeated size, weight, and line-height combinations that deserve names.";
+    if (category === "spacing") return "Spacing is where visual rhythm usually breaks first. Repeated values suggest a scale; rare values are candidates for cleanup.";
+    if (category === "borders") return "Mixed radii and border widths make components feel unrelated even when layout is consistent.";
+    if (category === "shadows") return "Elevation should communicate hierarchy. Too many shadows often signal custom component styling.";
+    if (category === "buttons") return "Button fragmentation creates extra implementation work and unclear hierarchy for users.";
+    return "Forms carry a lot of repeated interaction detail. Consistent controls reduce implementation drift and user hesitation.";
+  }
+
+  categoryInspection(category: string): string {
+    if (category === "colors") return "Sort by uses, compare similar swatches, and decide which values map to brand, text, border, surface, and action roles.";
+    if (category === "typography") return "Look for styles with similar size and weight. Keep the few that match real content hierarchy.";
+    if (category === "spacing") return "Look at the most common values first, then challenge rare values against the nearest scale step.";
+    if (category === "buttons") return "Compare color, radius, padding, and text treatment. Each surviving variant should have a clear product purpose.";
+    return "Review high-use patterns first, then inspect rare values to decide whether they are intentional exceptions.";
+  }
+
+  categoryDone(category: string): string {
+    if (category === "colors") return "Each repeated color has a token name or an intentional reason to stay raw.";
+    if (category === "typography") return "The team can name the core text styles and explain outliers.";
+    if (category === "spacing") return "Rare values are either mapped to the scale or documented as layout exceptions.";
+    if (category === "buttons") return "Primary, secondary, destructive, and quiet actions are clear, with no accidental variants.";
+    return "Repeated decisions are promoted into tokens or component rules, and exceptions are documented.";
+  }
+
+  inventoryHelp(category: string): string {
+    if (category === "colors") return "Use the count to find canonical values; use examples to confirm whether a value is brand, text, surface, border, or status.";
+    if (category === "spacing") return "Counts reveal the scale. Low-count values are not always wrong, but they should earn their place.";
+    if (category === "typography") return "Repeated combinations are candidates for named text styles; rare combinations may be local overrides.";
+    return "Start with high-use patterns, then inspect examples for values that should become shared component decisions.";
   }
 
   label(value: string): string {

@@ -1,5 +1,7 @@
 import type {
   DesignDebtResults,
+  BacklogItem,
+  BacklogStatus,
   Finding,
   FindingChange,
   MetricDelta,
@@ -16,7 +18,6 @@ import {
   exportTokensJson,
   generateTokenProposals,
 } from "../../../../packages/analysis/src/index.js";
-import type { Prisma } from "@prisma/client";
 import { PlaywrightWebsiteScanner, validatePublicHttpUrl } from "../../../../packages/scanner/src/index.js";
 import {
   completeScanRecord,
@@ -24,13 +25,16 @@ import {
   deleteScanRecord,
   failScanRecord,
   getPersistedResults,
+  getPersistedBacklog,
   getPersistedTokens,
   getScanRecord,
   getScanWithResults,
   listScanRecords,
   markScanRunning,
+  patchPersistedBacklogItem,
   replacePersistedTokens,
   resetScanRecord,
+  seedPersistedBacklog,
   setScanProgress,
   type PersistedScan,
 } from "./scan-repository.js";
@@ -54,7 +58,7 @@ export async function ensureDemoScan(): Promise<void> {
       progress: 100,
       healthScore: 68,
       warnings: [],
-      analysis: demoResults as unknown as Prisma.InputJsonValue,
+      analysis: demoResults as never,
     },
   });
 
@@ -104,6 +108,26 @@ export async function getResults(id: string): Promise<DesignDebtResults | null> 
 export async function getTokens(id: string): Promise<TokenProposal[] | null> {
   await ensureDemoScan();
   return getPersistedTokens(id);
+}
+
+export async function getBacklog(id: string): Promise<BacklogItem[] | null> {
+  await ensureDemoScan();
+  const [results, tokens] = await Promise.all([getPersistedResults(id), getPersistedTokens(id)]);
+  if (!results || !tokens) return null;
+
+  const existing = await getPersistedBacklog(id);
+  if (existing?.length) return existing;
+
+  return seedPersistedBacklog(id, buildBacklogSuggestions(results, tokens));
+}
+
+export async function updateBacklogItem(
+  scanId: string,
+  itemId: string,
+  patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
+): Promise<BacklogItem | null> {
+  await ensureDemoScan();
+  return patchPersistedBacklogItem(scanId, itemId, patch);
 }
 
 export async function compareScans(baseId: string, targetId: string): Promise<ScanComparison | null> {
@@ -273,4 +297,59 @@ function comparisonSummary(scoreDelta: number, added: number, resolved: number):
     return `Health is flat, but findings changed: ${added} added and ${resolved} resolved.`;
   }
   return "No meaningful design health movement between these scans.";
+}
+
+function buildBacklogSuggestions(
+  results: DesignDebtResults,
+  tokens: TokenProposal[],
+): Omit<BacklogItem, "id" | "scanId" | "createdAt" | "updatedAt">[] {
+  const findingItems = [...results.findings]
+    .sort((a, b) => priorityScore(b) - priorityScore(a))
+    .slice(0, 6)
+    .map((finding) => ({
+      sourceType: "finding" as const,
+      sourceId: finding.id,
+      title: finding.title,
+      category: finding.category,
+      priority: finding.severity === "warning" ? "High" as const : "Medium" as const,
+      status: "open" as BacklogStatus,
+      owner: ownerForFinding(finding),
+      notes: backlogNotes(finding),
+      route: `/audit/${finding.targetView}`,
+    }));
+
+  const reviewTokens = tokens.filter((token) => token.status === "needs-review");
+  const tokenItem = reviewTokens.length
+    ? [{
+        sourceType: "token-review" as const,
+        sourceId: "token-review",
+        title: "Resolve token export decisions",
+        category: "tokens" as const,
+        priority: "High" as const,
+        status: "open" as BacklogStatus,
+        owner: "Design + engineering",
+        notes: `${reviewTokens.length} proposed tokens need include, review, or exclude decisions before handoff.`,
+        route: "/tokens",
+      }]
+    : [];
+
+  return [...tokenItem, ...findingItems];
+}
+
+function priorityScore(finding: Finding): number {
+  const severity = finding.severity === "warning" ? 100 : finding.severity === "suggestion" ? 50 : 10;
+  return severity + finding.count;
+}
+
+function ownerForFinding(finding: Finding): string {
+  if (finding.category === "buttons" || finding.category === "forms") return "Design system";
+  if (finding.category === "spacing" || finding.category === "colors") return "Design + engineering";
+  return "Design";
+}
+
+function backlogNotes(finding: Finding): string {
+  if (finding.category === "colors") return "Choose canonical roles for repeated or near-duplicate colors, then map them into named tokens.";
+  if (finding.category === "spacing") return "Map rare values to the spacing scale or document why the exception should remain.";
+  if (finding.category === "buttons") return "Reduce button variants into named component patterns with shared padding, radius, and color roles.";
+  return finding.description;
 }

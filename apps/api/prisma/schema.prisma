@@ -24,6 +24,7 @@ model Scan {
   snapshots   ElementSnapshot[]
   findings    Finding[]
   tokens      TokenProposal[]
+  backlog     BacklogItem[]
 }
 
 model Page {
@@ -78,5 +79,25 @@ model TokenProposal {
   mapsTo     String?
   scan       Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
+  @@index([scanId])
+}
+
+model BacklogItem {
+  id         String   @id
+  scanId     String
+  sourceType String
+  sourceId   String
+  title      String
+  category   String
+  priority   String
+  status     String   @default("open")
+  owner      String   @default("")
+  notes      String   @default("")
+  route      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  scan       Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@unique([scanId, sourceType, sourceId])
   @@index([scanId])
 }
