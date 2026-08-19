@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { authOf } from "../middleware/auth.js";
 import {
   getSettings,
   savePageGroups,
@@ -53,7 +54,7 @@ const teamMembersSchema = z.object({
 
 settingsRouter.get("/", async (_request, response, next) => {
   try {
-    response.json(await getSettings());
+    response.json(await getSettings(authOf(_request).workspaceId));
   } catch (error) {
     next(error);
   }
@@ -61,7 +62,7 @@ settingsRouter.get("/", async (_request, response, next) => {
 
 settingsRouter.put("/", async (request, response, next) => {
   try {
-    response.json(await saveSettings(settingsSchema.parse(request.body)));
+    response.json(await saveSettings(settingsSchema.parse(request.body), authOf(request).workspaceId));
   } catch (error) {
     next(error);
   }
@@ -70,7 +71,7 @@ settingsRouter.put("/", async (request, response, next) => {
 settingsRouter.put("/page-groups", async (request, response, next) => {
   try {
     const body = pageGroupsSchema.parse(request.body);
-    response.json(await savePageGroups(body.pageGroups));
+    response.json(await savePageGroups(body.pageGroups, authOf(request).workspaceId));
   } catch (error) {
     next(error);
   }
@@ -79,7 +80,7 @@ settingsRouter.put("/page-groups", async (request, response, next) => {
 settingsRouter.put("/schedules", async (request, response, next) => {
   try {
     const body = schedulesSchema.parse(request.body);
-    response.json(await saveSchedules(body.schedules));
+    response.json(await saveSchedules(body.schedules, authOf(request).workspaceId));
   } catch (error) {
     next(error);
   }
@@ -88,7 +89,7 @@ settingsRouter.put("/schedules", async (request, response, next) => {
 settingsRouter.put("/team-members", async (request, response, next) => {
   try {
     const body = teamMembersSchema.parse(request.body);
-    response.json(await saveTeamMembers(body.teamMembers));
+    response.json(await saveTeamMembers(body.teamMembers, authOf(request).workspaceId));
   } catch (error) {
     next(error);
   }

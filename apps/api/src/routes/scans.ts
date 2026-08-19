@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { authOf } from "../middleware/auth.js";
 import {
   compareScans,
   createScan,
@@ -39,7 +40,7 @@ const updateBacklogSchema = z.object({
 scansRouter.post("/", async (request, response, next) => {
   try {
     const body = createScanSchema.parse(request.body);
-    response.status(202).json(await createScan(body.rootUrl, body.maxPages));
+    response.status(202).json(await createScan(body.rootUrl, body.maxPages, authOf(request).workspaceId));
   } catch (error) {
     if (error instanceof ScanInputError) {
       response.status(400).json({ error: error.message });
@@ -51,7 +52,7 @@ scansRouter.post("/", async (request, response, next) => {
 
 scansRouter.get("/", async (_request, response, next) => {
   try {
-    response.json({ scans: await listScans() });
+    response.json({ scans: await listScans(authOf(_request).workspaceId) });
   } catch (error) {
     next(error);
   }
@@ -60,7 +61,7 @@ scansRouter.get("/", async (_request, response, next) => {
 scansRouter.get("/compare", async (request, response, next) => {
   try {
     const query = compareScansSchema.parse(request.query);
-    const comparison = await compareScans(query.baseId, query.targetId);
+    const comparison = await compareScans(query.baseId, query.targetId, authOf(request).workspaceId);
     if (!comparison) {
       response.status(404).json({ error: "Both scans must exist and be completed before they can be compared." });
       return;
@@ -77,7 +78,7 @@ scansRouter.get("/compare", async (request, response, next) => {
 
 scansRouter.get("/:id", async (request, response, next) => {
   try {
-    const scan = await getScan(request.params.id);
+    const scan = await getScan(request.params.id, authOf(request).workspaceId);
     if (!scan) {
       response.status(404).json({ error: "Scan not found." });
       return;
@@ -90,7 +91,7 @@ scansRouter.get("/:id", async (request, response, next) => {
 
 scansRouter.post("/:id/retry", async (request, response, next) => {
   try {
-    const scan = await retryScan(request.params.id);
+    const scan = await retryScan(request.params.id, authOf(request).workspaceId);
     if (!scan) {
       response.status(404).json({ error: "Scan not found." });
       return;
@@ -103,7 +104,7 @@ scansRouter.post("/:id/retry", async (request, response, next) => {
 
 scansRouter.delete("/:id", async (request, response, next) => {
   try {
-    const deleted = await deleteScan(request.params.id);
+    const deleted = await deleteScan(request.params.id, authOf(request).workspaceId);
     if (!deleted) {
       response.status(404).json({ error: "Scan not found." });
       return;
@@ -120,7 +121,7 @@ scansRouter.delete("/:id", async (request, response, next) => {
 
 scansRouter.get("/:id/results", async (request, response, next) => {
   try {
-    const results = await getResults(request.params.id);
+    const results = await getResults(request.params.id, authOf(request).workspaceId);
     if (!results) {
       response.status(404).json({ error: "Results are not ready." });
       return;
@@ -134,7 +135,7 @@ scansRouter.get("/:id/results", async (request, response, next) => {
 for (const category of ["colors", "typography", "spacing", "borders", "shadows", "buttons", "forms"] as const) {
   scansRouter.get(`/:id/${category}`, async (request, response, next) => {
     try {
-      const results = await getResults(request.params.id);
+      const results = await getResults(request.params.id, authOf(request).workspaceId);
       if (!results) {
         response.status(404).json({ error: "Results are not ready." });
         return;
@@ -148,7 +149,7 @@ for (const category of ["colors", "typography", "spacing", "borders", "shadows",
 
 scansRouter.get("/:id/tokens", async (request, response, next) => {
   try {
-    const tokens = await getTokens(request.params.id);
+    const tokens = await getTokens(request.params.id, authOf(request).workspaceId);
     if (!tokens) {
       response.status(404).json({ error: "Tokens are not ready." });
       return;
@@ -161,7 +162,7 @@ scansRouter.get("/:id/tokens", async (request, response, next) => {
 
 scansRouter.put("/:id/tokens", async (request, response, next) => {
   try {
-    const tokens = await updateTokens(request.params.id, request.body.tokens ?? []);
+    const tokens = await updateTokens(request.params.id, request.body.tokens ?? [], authOf(request).workspaceId);
     if (!tokens) {
       response.status(404).json({ error: "Scan not found." });
       return;
@@ -174,7 +175,7 @@ scansRouter.put("/:id/tokens", async (request, response, next) => {
 
 scansRouter.get("/:id/backlog", async (request, response, next) => {
   try {
-    const backlog = await getBacklog(request.params.id);
+    const backlog = await getBacklog(request.params.id, authOf(request).workspaceId);
     if (!backlog) {
       response.status(404).json({ error: "Backlog is not ready." });
       return;
@@ -187,7 +188,7 @@ scansRouter.get("/:id/backlog", async (request, response, next) => {
 
 scansRouter.get("/:id/screenshots", async (request, response, next) => {
   try {
-    const screenshots = await getScreenshots(request.params.id);
+    const screenshots = await getScreenshots(request.params.id, authOf(request).workspaceId);
     if (!screenshots) {
       response.status(404).json({ error: "Screenshots are not ready." });
       return;
@@ -201,7 +202,7 @@ scansRouter.get("/:id/screenshots", async (request, response, next) => {
 scansRouter.patch("/:id/backlog/:itemId", async (request, response, next) => {
   try {
     const body = updateBacklogSchema.parse(request.body);
-    const item = await updateBacklogItem(request.params.id, request.params.itemId, body);
+    const item = await updateBacklogItem(request.params.id, request.params.itemId, body, authOf(request).workspaceId);
     if (!item) {
       response.status(404).json({ error: "Backlog item not found." });
       return;
@@ -215,7 +216,7 @@ scansRouter.patch("/:id/backlog/:itemId", async (request, response, next) => {
 scansRouter.get("/:id/tokens/export", async (request, response, next) => {
   try {
     const format = request.query.format === "json" ? "json" : "css";
-    const exported = await exportTokens(request.params.id, format);
+    const exported = await exportTokens(request.params.id, format, authOf(request).workspaceId);
     if (!exported) {
       response.status(404).json({ error: "Tokens are not ready." });
       return;
@@ -233,7 +234,7 @@ scansRouter.get("/:id/tokens/export", async (request, response, next) => {
 scansRouter.get("/:id/report", async (request, response, next) => {
   try {
     const format = request.query.format === "markdown" ? "markdown" : "html";
-    const report = await exportStakeholderReport(request.params.id, format);
+    const report = await exportStakeholderReport(request.params.id, format, authOf(request).workspaceId);
     if (!report) {
       response.status(404).json({ error: "Report is not ready." });
       return;

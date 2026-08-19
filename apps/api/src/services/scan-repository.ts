@@ -92,10 +92,12 @@ export async function checkDatabaseConnection(): Promise<void> {
 export async function createScanRecord(
   rootUrl: string,
   maxPages: number,
+  workspaceId = "default",
 ): Promise<PersistedScan> {
   const scan = await prisma.scan.create({
     data: {
       id: nanoid(),
+      workspaceId,
       rootUrl,
       status: "queued",
       maxPages,
@@ -106,16 +108,17 @@ export async function createScanRecord(
   return toScanSummary(scan);
 }
 
-export async function listScanRecords(): Promise<PersistedScan[]> {
+export async function listScanRecords(workspaceId = "default"): Promise<PersistedScan[]> {
   const scans = await prisma.scan.findMany({
+    where: { workspaceId },
     orderBy: { createdAt: "desc" },
   });
 
   return scans.map(toScanSummary);
 }
 
-export async function getScanRecord(id: string): Promise<PersistedScan | null> {
-  const scan = await prisma.scan.findUnique({ where: { id } });
+export async function getScanRecord(id: string, workspaceId = "default"): Promise<PersistedScan | null> {
+  const scan = await prisma.scan.findFirst({ where: { id, workspaceId } });
   return scan ? toScanSummary(scan) : null;
 }
 
@@ -218,9 +221,9 @@ export async function failScanRecord(scanId: string, error: string): Promise<voi
   });
 }
 
-export async function resetScanRecord(scanId: string): Promise<PersistedScan | null> {
+export async function resetScanRecord(scanId: string, workspaceId = "default"): Promise<PersistedScan | null> {
   const scan = await prisma.$transaction(async (transaction: PrismaTransaction) => {
-    const existing = await transaction.scan.findUnique({ where: { id: scanId } });
+    const existing = await transaction.scan.findFirst({ where: { id: scanId, workspaceId } });
     if (!existing) return null;
 
     await transaction.page.deleteMany({ where: { scanId } });
@@ -248,9 +251,9 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
   return scan ? toScanSummary(scan) : null;
 }
 
-export async function deleteScanRecord(scanId: string): Promise<boolean> {
+export async function deleteScanRecord(scanId: string, workspaceId = "default"): Promise<boolean> {
   const deleted = await prisma.$transaction(async (transaction: PrismaTransaction) => {
-    const existing = await transaction.scan.findUnique({ where: { id: scanId } });
+    const existing = await transaction.scan.findFirst({ where: { id: scanId, workspaceId } });
     if (!existing) return false;
 
     await transaction.page.deleteMany({ where: { scanId } });
@@ -265,9 +268,9 @@ export async function deleteScanRecord(scanId: string): Promise<boolean> {
   return deleted;
 }
 
-export async function getPersistedResults(scanId: string): Promise<DesignDebtResults | null> {
-  const scan = await prisma.scan.findUnique({
-    where: { id: scanId },
+export async function getPersistedResults(scanId: string, workspaceId = "default"): Promise<DesignDebtResults | null> {
+  const scan = await prisma.scan.findFirst({
+    where: { id: scanId, workspaceId },
     select: { analysis: true },
   });
 
@@ -276,8 +279,9 @@ export async function getPersistedResults(scanId: string): Promise<DesignDebtRes
 
 export async function getScanWithResults(
   scanId: string,
+  workspaceId = "default",
 ): Promise<{ scan: PersistedScan; results: DesignDebtResults } | null> {
-  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
+  const scan = await prisma.scan.findFirst({ where: { id: scanId, workspaceId } });
   if (!scan || scan.status !== "completed" || !scan.analysis) return null;
 
   return {
@@ -286,9 +290,9 @@ export async function getScanWithResults(
   };
 }
 
-export async function getPersistedTokens(scanId: string): Promise<TokenProposal[] | null> {
-  const scan = await prisma.scan.findUnique({
-    where: { id: scanId },
+export async function getPersistedTokens(scanId: string, workspaceId = "default"): Promise<TokenProposal[] | null> {
+  const scan = await prisma.scan.findFirst({
+    where: { id: scanId, workspaceId },
     select: { id: true },
   });
   if (!scan) return null;
@@ -314,8 +318,9 @@ export async function getPersistedTokens(scanId: string): Promise<TokenProposal[
 export async function replacePersistedTokens(
   scanId: string,
   tokens: TokenProposal[],
+  workspaceId = "default",
 ): Promise<TokenProposal[] | null> {
-  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
+  const scan = await prisma.scan.findFirst({ where: { id: scanId, workspaceId } });
   if (!scan) return null;
 
   await prisma.$transaction([
@@ -325,12 +330,12 @@ export async function replacePersistedTokens(
     }),
   ]);
 
-  return getPersistedTokens(scanId);
+  return getPersistedTokens(scanId, workspaceId);
 }
 
-export async function getPersistedBacklog(scanId: string): Promise<BacklogItem[] | null> {
-  const scan = await prisma.scan.findUnique({
-    where: { id: scanId },
+export async function getPersistedBacklog(scanId: string, workspaceId = "default"): Promise<BacklogItem[] | null> {
+  const scan = await prisma.scan.findFirst({
+    where: { id: scanId, workspaceId },
     select: { id: true },
   });
   if (!scan) return null;
@@ -346,8 +351,9 @@ export async function getPersistedBacklog(scanId: string): Promise<BacklogItem[]
 export async function seedPersistedBacklog(
   scanId: string,
   items: Omit<BacklogItem, "id" | "scanId" | "createdAt" | "updatedAt">[],
+  workspaceId = "default",
 ): Promise<BacklogItem[] | null> {
-  const scan = await prisma.scan.findUnique({ where: { id: scanId } });
+  const scan = await prisma.scan.findFirst({ where: { id: scanId, workspaceId } });
   if (!scan) return null;
 
   await prisma.$transaction(
@@ -370,14 +376,18 @@ export async function seedPersistedBacklog(
     ),
   );
 
-  return getPersistedBacklog(scanId);
+  return getPersistedBacklog(scanId, workspaceId);
 }
 
 export async function patchPersistedBacklogItem(
   scanId: string,
   itemId: string,
   patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
+  workspaceId = "default",
 ): Promise<BacklogItem | null> {
+  const scan = await prisma.scan.findFirst({ where: { id: scanId, workspaceId }, select: { id: true } });
+  if (!scan) return null;
+
   const existing = await prisma.backlogItem.findFirst({
     where: { id: itemId, scanId },
   });
@@ -395,9 +405,9 @@ export async function patchPersistedBacklogItem(
   return toBacklogItem(updated);
 }
 
-export async function getPersistedScreenshots(scanId: string): Promise<PageScreenshot[] | null> {
-  const scan = await prisma.scan.findUnique({
-    where: { id: scanId },
+export async function getPersistedScreenshots(scanId: string, workspaceId = "default"): Promise<PageScreenshot[] | null> {
+  const scan = await prisma.scan.findFirst({
+    where: { id: scanId, workspaceId },
     select: { id: true },
   });
   if (!scan) return null;
@@ -413,9 +423,10 @@ export async function getPersistedScreenshots(scanId: string): Promise<PageScree
 export async function seedPersistedScreenshots(
   scanId: string,
   screenshots: Omit<PageScreenshot, "id" | "scanId">[],
+  workspaceId = "default",
 ): Promise<PageScreenshot[] | null> {
-  const scan = await prisma.scan.findUnique({
-    where: { id: scanId },
+  const scan = await prisma.scan.findFirst({
+    where: { id: scanId, workspaceId },
     select: { id: true },
   });
   if (!scan) return null;
@@ -440,16 +451,16 @@ export async function seedPersistedScreenshots(
     );
   }
 
-  return getPersistedScreenshots(scanId);
+  return getPersistedScreenshots(scanId, workspaceId);
 }
 
-export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
-  await ensureWorkspaceSettingsRecord();
+export async function getWorkspaceSettings(workspaceId = "default"): Promise<WorkspaceSettings> {
+  await ensureWorkspaceSettingsRecord(workspaceId);
   const [settings, pageGroups, schedules, teamMembers] = await Promise.all([
-    prisma.workspaceSettings.findUniqueOrThrow({ where: { id: "default" } }),
-    prisma.pageGroup.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.scanSchedule.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.teamMember.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.workspaceSettings.findUniqueOrThrow({ where: { workspaceId } }),
+    prisma.pageGroup.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.scanSchedule.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.teamMember.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return toWorkspaceSettings(settings, pageGroups, schedules, teamMembers);
@@ -457,10 +468,11 @@ export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
 
 export async function updateWorkspaceSettings(
   patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
-  await ensureWorkspaceSettingsRecord();
+  await ensureWorkspaceSettingsRecord(workspaceId);
   await prisma.workspaceSettings.update({
-    where: { id: "default" },
+    where: { workspaceId },
     data: {
       teamName: patch.teamName,
       defaultPageLimit: patch.defaultPageLimit,
@@ -473,19 +485,21 @@ export async function updateWorkspaceSettings(
       reportFormatDefault: patch.reportFormatDefault,
     },
   });
-  return getWorkspaceSettings();
+  return getWorkspaceSettings(workspaceId);
 }
 
 export async function replacePageGroups(
   groups: Array<Pick<PageGroup, "id" | "name" | "matchers" | "color">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
   await prisma.$transaction([
-    prisma.pageGroup.deleteMany(),
+    prisma.pageGroup.deleteMany({ where: { workspaceId } }),
     ...(groups.length
       ? [
           prisma.pageGroup.createMany({
             data: groups.map((group) => ({
               id: group.id || nanoid(),
+              workspaceId,
               name: group.name,
               matchers: group.matchers as never,
               color: group.color,
@@ -494,19 +508,21 @@ export async function replacePageGroups(
         ]
       : []),
   ]);
-  return getWorkspaceSettings();
+  return getWorkspaceSettings(workspaceId);
 }
 
 export async function replaceScanSchedules(
   schedules: Array<Pick<ScheduledScan, "id" | "rootUrl" | "cadence" | "maxPages" | "enabled" | "nextRunAt">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
   await prisma.$transaction([
-    prisma.scanSchedule.deleteMany(),
+    prisma.scanSchedule.deleteMany({ where: { workspaceId } }),
     ...(schedules.length
       ? [
           prisma.scanSchedule.createMany({
             data: schedules.map((schedule) => ({
               id: schedule.id || nanoid(),
+              workspaceId,
               rootUrl: schedule.rootUrl,
               cadence: schedule.cadence,
               maxPages: schedule.maxPages,
@@ -517,19 +533,21 @@ export async function replaceScanSchedules(
         ]
       : []),
   ]);
-  return getWorkspaceSettings();
+  return getWorkspaceSettings(workspaceId);
 }
 
 export async function replaceTeamMembers(
   members: Array<Pick<TeamMember, "id" | "name" | "email" | "role">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
   await prisma.$transaction([
-    prisma.teamMember.deleteMany(),
+    prisma.teamMember.deleteMany({ where: { workspaceId } }),
     ...(members.length
       ? [
           prisma.teamMember.createMany({
             data: members.map((member) => ({
               id: member.id || nanoid(),
+              workspaceId,
               name: member.name,
               email: member.email,
               role: member.role,
@@ -538,15 +556,20 @@ export async function replaceTeamMembers(
         ]
       : []),
   ]);
-  return getWorkspaceSettings();
+  return getWorkspaceSettings(workspaceId);
 }
 
-async function ensureWorkspaceSettingsRecord(): Promise<void> {
+async function ensureWorkspaceSettingsRecord(workspaceId = "default"): Promise<void> {
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) return;
+
   await prisma.workspaceSettings.upsert({
-    where: { id: "default" },
+    where: { workspaceId },
     update: {},
     create: {
-      id: "default",
+      id: workspaceId,
+      workspaceId,
+      teamName: workspace.name,
       ignoredPaths: ["/admin", "/checkout", "/account"] as never,
     },
   });

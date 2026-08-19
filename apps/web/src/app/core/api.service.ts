@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from "@angular/core";
 import type {
   BacklogItem,
   DesignDebtResults,
+  AuthSession,
   PageGroup,
   PageScreenshot,
   ScanComparison,
@@ -19,6 +20,8 @@ const API_BASE = "/api";
 export class ApiService {
   private readonly http = inject(HttpClient);
   readonly activeScan = signal<ScanSummary | null>(null);
+  readonly session = signal<AuthSession | null>(null);
+  readonly authReady = signal(false);
   readonly results = signal<DesignDebtResults | null>(null);
   readonly tokens = signal<TokenProposal[]>([]);
   readonly backlog = signal<BacklogItem[]>([]);
@@ -48,13 +51,67 @@ export class ApiService {
     }
   }
 
+  async initializeAuth(): Promise<void> {
+    try {
+      const response = await firstValue<{ session: AuthSession | null }>(
+        this.http.get<{ session: AuthSession | null }>(`${API_BASE}/auth/me`, { withCredentials: true }),
+      );
+      this.session.set(response.session);
+    } finally {
+      this.authReady.set(true);
+    }
+  }
+
+  async signup(input: { name: string; email: string; password: string; workspaceName: string }): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const response = await firstValue<{ session: AuthSession }>(
+        this.http.post<{ session: AuthSession }>(`${API_BASE}/auth/signup`, input, { withCredentials: true }),
+      );
+      this.session.set(response.session);
+      await this.loadDemo();
+    } catch (error) {
+      this.error.set(apiErrorMessage(error, "Unable to create account."));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async login(input: { email: string; password: string }): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const response = await firstValue<{ session: AuthSession }>(
+        this.http.post<{ session: AuthSession }>(`${API_BASE}/auth/login`, input, { withCredentials: true }),
+      );
+      this.session.set(response.session);
+      await this.loadDemo();
+    } catch (error) {
+      this.error.set(apiErrorMessage(error, "Unable to sign in."));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async logout(): Promise<void> {
+    await firstValue<void>(this.http.post<void>(`${API_BASE}/auth/logout`, {}, { withCredentials: true }));
+    this.session.set(null);
+    this.activeScan.set(null);
+    this.results.set(null);
+    this.tokens.set([]);
+    this.backlog.set([]);
+    this.screenshots.set([]);
+    this.settings.set(null);
+  }
+
   async startScan(rootUrl: string, maxPages: number): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
     this.pendingScanUrl.set(rootUrl);
     try {
       const scan = await firstValue<ScanSummary>(
-        this.http.post<ScanSummary>(`${API_BASE}/scans`, { rootUrl, maxPages }),
+        this.http.post<ScanSummary>(`${API_BASE}/scans`, { rootUrl, maxPages }, { withCredentials: true }),
       );
       this.activeScan.set(scan);
       if (scan.status === "failed" && scan.error) {
@@ -71,7 +128,7 @@ export class ApiService {
 
   async listScans(): Promise<ScanSummary[]> {
     const response = await firstValue<{ scans: ScanSummary[] }>(
-      this.http.get<{ scans: ScanSummary[] }>(`${API_BASE}/scans`),
+      this.http.get<{ scans: ScanSummary[] }>(`${API_BASE}/scans`, { withCredentials: true }),
     );
     return response.scans;
   }
@@ -80,25 +137,26 @@ export class ApiService {
     return firstValue<ScanComparison>(
       this.http.get<ScanComparison>(`${API_BASE}/scans/compare`, {
         params: { baseId, targetId },
+        withCredentials: true,
       }),
     );
   }
 
   async loadScan(id: string): Promise<void> {
     this.error.set(null);
-    const scan = await firstValue<ScanSummary>(this.http.get<ScanSummary>(`${API_BASE}/scans/${id}`));
+    const scan = await firstValue<ScanSummary>(this.http.get<ScanSummary>(`${API_BASE}/scans/${id}`, { withCredentials: true }));
     this.activeScan.set(scan);
     if (scan.status === "completed") {
       const [results, tokenResponse, screenshotResponse] = await Promise.all([
-        firstValue<DesignDebtResults>(this.http.get<DesignDebtResults>(`${API_BASE}/scans/${id}/results`)),
-        firstValue<{ tokens: TokenProposal[] }>(this.http.get<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${id}/tokens`)),
-        firstValue<{ screenshots: PageScreenshot[] }>(this.http.get<{ screenshots: PageScreenshot[] }>(`${API_BASE}/scans/${id}/screenshots`)),
+        firstValue<DesignDebtResults>(this.http.get<DesignDebtResults>(`${API_BASE}/scans/${id}/results`, { withCredentials: true })),
+        firstValue<{ tokens: TokenProposal[] }>(this.http.get<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${id}/tokens`, { withCredentials: true })),
+        firstValue<{ screenshots: PageScreenshot[] }>(this.http.get<{ screenshots: PageScreenshot[] }>(`${API_BASE}/scans/${id}/screenshots`, { withCredentials: true })),
       ]);
       this.results.set(results);
       this.tokens.set(tokenResponse.tokens);
       this.screenshots.set(screenshotResponse.screenshots);
       const backlogResponse = await firstValue<{ backlog: BacklogItem[] }>(
-        this.http.get<{ backlog: BacklogItem[] }>(`${API_BASE}/scans/${id}/backlog`),
+        this.http.get<{ backlog: BacklogItem[] }>(`${API_BASE}/scans/${id}/backlog`, { withCredentials: true }),
       );
       this.backlog.set(backlogResponse.backlog);
     } else {
@@ -110,7 +168,7 @@ export class ApiService {
   }
 
   async loadSettings(): Promise<WorkspaceSettings> {
-    const settings = await firstValue<WorkspaceSettings>(this.http.get<WorkspaceSettings>(`${API_BASE}/settings`));
+    const settings = await firstValue<WorkspaceSettings>(this.http.get<WorkspaceSettings>(`${API_BASE}/settings`, { withCredentials: true }));
     this.settings.set(settings);
     return settings;
   }
@@ -118,14 +176,14 @@ export class ApiService {
   async saveSettings(
     patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
   ): Promise<WorkspaceSettings> {
-    const settings = await firstValue<WorkspaceSettings>(this.http.put<WorkspaceSettings>(`${API_BASE}/settings`, patch));
+    const settings = await firstValue<WorkspaceSettings>(this.http.put<WorkspaceSettings>(`${API_BASE}/settings`, patch, { withCredentials: true }));
     this.settings.set(settings);
     return settings;
   }
 
   async savePageGroups(pageGroups: PageGroup[]): Promise<WorkspaceSettings> {
     const settings = await firstValue<WorkspaceSettings>(
-      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/page-groups`, { pageGroups }),
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/page-groups`, { pageGroups }, { withCredentials: true }),
     );
     this.settings.set(settings);
     return settings;
@@ -133,7 +191,7 @@ export class ApiService {
 
   async saveSchedules(schedules: ScheduledScan[]): Promise<WorkspaceSettings> {
     const settings = await firstValue<WorkspaceSettings>(
-      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/schedules`, { schedules }),
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/schedules`, { schedules }, { withCredentials: true }),
     );
     this.settings.set(settings);
     return settings;
@@ -141,7 +199,7 @@ export class ApiService {
 
   async saveTeamMembers(teamMembers: TeamMember[]): Promise<WorkspaceSettings> {
     const settings = await firstValue<WorkspaceSettings>(
-      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/team-members`, { teamMembers }),
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/team-members`, { teamMembers }, { withCredentials: true }),
     );
     this.settings.set(settings);
     return settings;
@@ -151,7 +209,7 @@ export class ApiService {
     const scan = this.activeScan();
     if (!scan) return;
     const response = await firstValue<{ tokens: TokenProposal[] }>(
-      this.http.put<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${scan.id}/tokens`, { tokens }),
+      this.http.put<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${scan.id}/tokens`, { tokens }, { withCredentials: true }),
     );
     this.tokens.set(response.tokens);
   }
@@ -162,7 +220,7 @@ export class ApiService {
     this.pendingScanUrl.set(this.activeScan()?.rootUrl ?? null);
     try {
       const scan = await firstValue<ScanSummary>(
-        this.http.post<ScanSummary>(`${API_BASE}/scans/${id}/retry`, {}),
+        this.http.post<ScanSummary>(`${API_BASE}/scans/${id}/retry`, {}, { withCredentials: true }),
       );
       this.activeScan.set(scan);
       this.results.set(null);
@@ -180,7 +238,7 @@ export class ApiService {
   async deleteScan(id: string): Promise<void> {
     this.error.set(null);
     try {
-      await firstValue<void>(this.http.delete<void>(`${API_BASE}/scans/${id}`));
+      await firstValue<void>(this.http.delete<void>(`${API_BASE}/scans/${id}`, { withCredentials: true }));
       if (this.activeScan()?.id === id) {
         this.activeScan.set(null);
         this.results.set(null);
@@ -197,14 +255,14 @@ export class ApiService {
   async copyExport(format: "css" | "json"): Promise<string> {
     const scan = this.activeScan();
     if (!scan) return "";
-    const response = await fetch(`${API_BASE}/scans/${scan.id}/tokens/export?format=${format}`);
+    const response = await fetch(`${API_BASE}/scans/${scan.id}/tokens/export?format=${format}`, { credentials: "include" });
     return format === "css" ? response.text() : JSON.stringify(await response.json(), null, 2);
   }
 
   async reportExport(format: "markdown" | "html"): Promise<string> {
     const scan = this.activeScan();
     if (!scan) return "";
-    const response = await fetch(`${API_BASE}/scans/${scan.id}/report?format=${format}`);
+    const response = await fetch(`${API_BASE}/scans/${scan.id}/report?format=${format}`, { credentials: "include" });
     return response.text();
   }
 
@@ -213,7 +271,7 @@ export class ApiService {
     patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
   ): Promise<void> {
     const response = await firstValue<{ item: BacklogItem }>(
-      this.http.patch<{ item: BacklogItem }>(`${API_BASE}/scans/${item.scanId}/backlog/${item.id}`, patch),
+      this.http.patch<{ item: BacklogItem }>(`${API_BASE}/scans/${item.scanId}/backlog/${item.id}`, patch, { withCredentials: true }),
     );
     this.backlog.update((items) => items.map((current) => current.id === response.item.id ? response.item : current));
   }

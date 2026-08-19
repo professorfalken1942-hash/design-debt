@@ -129,6 +129,11 @@ textarea {
   color: var(--text);
 }
 
+.signout-button {
+  margin-top: 1rem;
+  width: 100%;
+}
+
 .content {
   min-width: 0;
   padding: 1.25rem;
@@ -138,6 +143,36 @@ textarea {
   margin: 0 auto;
   max-width: 1180px;
   min-width: 0;
+}
+
+.auth-shell {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.1fr) minmax(22rem, 0.7fr);
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+
+.auth-hero {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 48rem;
+}
+
+.auth-hero .brand-mark {
+  height: 3rem;
+  width: 3rem;
+}
+
+.auth-panel {
+  padding: 1rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
 }
 
 .topbar {
@@ -1581,6 +1616,7 @@ textarea {
     grid-template-columns: 1fr;
   }
   .hero-panel,
+  .auth-shell,
   .action-dashboard,
   .insight-grid,
   .workflow-grid,

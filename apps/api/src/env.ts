@@ -15,4 +15,6 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL,
   databaseConfigured: Boolean(process.env.DATABASE_URL),
   databaseHost: databaseHost(),
+  sessionSecret: process.env.SESSION_SECRET ?? process.env.DATABASE_URL ?? "local-dev-session-secret",
+  secureCookies: process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL),
 };

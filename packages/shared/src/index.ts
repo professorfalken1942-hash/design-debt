@@ -1,5 +1,24 @@
 export type ScanStatus = "queued" | "running" | "completed" | "failed";
 
+export type WorkspaceRole = "owner" | "designer" | "developer" | "viewer";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface AuthWorkspace {
+  id: string;
+  name: string;
+  role: WorkspaceRole;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  workspace: AuthWorkspace;
+}
+
 export interface ElementSnapshot {
   pageUrl: string;
   tagName: string;

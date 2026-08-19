@@ -55,17 +55,19 @@ import { prisma } from "../lib/prisma.js";
 
 const scanner = new PlaywrightWebsiteScanner();
 
-export async function ensureDemoScan(): Promise<void> {
-  const existing = await getScanRecord("demo");
+export async function ensureDemoScan(workspaceId = "default"): Promise<void> {
+  const demoId = workspaceDemoId(workspaceId);
+  const existing = await getScanRecord(demoId, workspaceId);
   if (existing) {
-    const screenshots = await getPersistedScreenshots("demo");
-    if (!screenshots?.length) await seedPersistedScreenshots("demo", demoScreenshots);
+    const screenshots = await getPersistedScreenshots(demoId, workspaceId);
+    if (!screenshots?.length) await seedPersistedScreenshots(demoId, demoScreenshots, workspaceId);
     return;
   }
 
   await prisma.scan.create({
     data: {
-      id: "demo",
+      id: demoId,
+      workspaceId,
       rootUrl: "https://example-product.test",
       status: "completed",
       createdAt: new Date(Date.now() - 1000 * 60 * 18),
@@ -80,7 +82,7 @@ export async function ensureDemoScan(): Promise<void> {
   });
 
   await completeScanRecord({
-    scanId: "demo",
+    scanId: demoId,
     pageUrls: [...new Set(demoSnapshots.map((snapshot) => snapshot.pageUrl))],
     snapshots: demoSnapshots,
     screenshots: demoScreenshots,
@@ -90,108 +92,118 @@ export async function ensureDemoScan(): Promise<void> {
   });
 }
 
-export async function createScan(rootUrl: string, maxPages: number): Promise<PersistedScan> {
+export async function createScan(rootUrl: string, maxPages: number, workspaceId = "default"): Promise<PersistedScan> {
   const validation = await validatePublicHttpUrl(rootUrl);
   if (!validation.ok || !validation.normalizedUrl) {
     throw new ScanInputError(validation.error ?? "Invalid URL.");
   }
 
-  const scan = await createScanRecord(validation.normalizedUrl, maxPages);
-  return startExecution(scan);
+  const scan = await createScanRecord(validation.normalizedUrl, maxPages, workspaceId);
+  return startExecution(scan, workspaceId);
 }
 
-export async function listScans(): Promise<PersistedScan[]> {
-  await ensureDemoScan();
-  return listScanRecords();
+export async function listScans(workspaceId = "default"): Promise<PersistedScan[]> {
+  await ensureDemoScan(workspaceId);
+  return listScanRecords(workspaceId);
 }
 
-export async function getScan(id: string): Promise<ScanSummary | null> {
-  await ensureDemoScan();
-  return getScanRecord(id);
+export async function getScan(id: string, workspaceId = "default"): Promise<ScanSummary | null> {
+  await ensureDemoScan(workspaceId);
+  return getScanRecord(scanIdForWorkspace(id, workspaceId), workspaceId);
 }
 
-export async function deleteScan(id: string): Promise<boolean> {
-  await ensureDemoScan();
+export async function deleteScan(id: string, workspaceId = "default"): Promise<boolean> {
+  await ensureDemoScan(workspaceId);
   if (id === "demo") {
     throw new ScanInputError("The demo scan cannot be deleted.");
   }
-  return deleteScanRecord(id);
+  return deleteScanRecord(scanIdForWorkspace(id, workspaceId), workspaceId);
 }
 
-export async function getResults(id: string): Promise<DesignDebtResults | null> {
-  await ensureDemoScan();
-  return getPersistedResults(id);
+export async function getResults(id: string, workspaceId = "default"): Promise<DesignDebtResults | null> {
+  await ensureDemoScan(workspaceId);
+  return getPersistedResults(scanIdForWorkspace(id, workspaceId), workspaceId);
 }
 
-export async function getTokens(id: string): Promise<TokenProposal[] | null> {
-  await ensureDemoScan();
-  return getPersistedTokens(id);
+export async function getTokens(id: string, workspaceId = "default"): Promise<TokenProposal[] | null> {
+  await ensureDemoScan(workspaceId);
+  return getPersistedTokens(scanIdForWorkspace(id, workspaceId), workspaceId);
 }
 
-export async function getBacklog(id: string): Promise<BacklogItem[] | null> {
-  await ensureDemoScan();
-  const [results, tokens] = await Promise.all([getPersistedResults(id), getPersistedTokens(id)]);
+export async function getBacklog(id: string, workspaceId = "default"): Promise<BacklogItem[] | null> {
+  await ensureDemoScan(workspaceId);
+  const scanId = scanIdForWorkspace(id, workspaceId);
+  const [results, tokens] = await Promise.all([
+    getPersistedResults(scanId, workspaceId),
+    getPersistedTokens(scanId, workspaceId),
+  ]);
   if (!results || !tokens) return null;
 
-  const existing = await getPersistedBacklog(id);
+  const existing = await getPersistedBacklog(scanId, workspaceId);
   if (existing?.length) return existing;
 
-  return seedPersistedBacklog(id, buildBacklogSuggestions(results, tokens));
+  return seedPersistedBacklog(scanId, buildBacklogSuggestions(results, tokens), workspaceId);
 }
 
-export async function getScreenshots(id: string): Promise<PageScreenshot[] | null> {
-  await ensureDemoScan();
-  const screenshots = await getPersistedScreenshots(id);
-  if (id === "demo" && !screenshots?.length) return seedPersistedScreenshots(id, demoScreenshots);
+export async function getScreenshots(id: string, workspaceId = "default"): Promise<PageScreenshot[] | null> {
+  await ensureDemoScan(workspaceId);
+  const scanId = scanIdForWorkspace(id, workspaceId);
+  const screenshots = await getPersistedScreenshots(scanId, workspaceId);
+  if (id === "demo" && !screenshots?.length) return seedPersistedScreenshots(scanId, demoScreenshots, workspaceId);
   return screenshots;
 }
 
-export async function getSettings(): Promise<WorkspaceSettings> {
-  return getWorkspaceSettings();
+export async function getSettings(workspaceId = "default"): Promise<WorkspaceSettings> {
+  return getWorkspaceSettings(workspaceId);
 }
 
 export async function saveSettings(
   patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
-  return updateWorkspaceSettings(patch);
+  return updateWorkspaceSettings(patch, workspaceId);
 }
 
 export async function savePageGroups(
   groups: Array<Pick<PageGroup, "id" | "name" | "matchers" | "color">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
-  return replacePageGroups(groups);
+  return replacePageGroups(groups, workspaceId);
 }
 
 export async function saveSchedules(
   schedules: Array<Pick<ScheduledScan, "id" | "rootUrl" | "cadence" | "maxPages" | "enabled" | "nextRunAt">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
-  return replaceScanSchedules(schedules);
+  return replaceScanSchedules(schedules, workspaceId);
 }
 
 export async function saveTeamMembers(
   members: Array<Pick<TeamMember, "id" | "name" | "email" | "role">>,
+  workspaceId = "default",
 ): Promise<WorkspaceSettings> {
-  return replaceTeamMembers(members);
+  return replaceTeamMembers(members, workspaceId);
 }
 
 export async function updateBacklogItem(
   scanId: string,
   itemId: string,
   patch: Partial<Pick<BacklogItem, "status" | "owner" | "notes">>,
+  workspaceId = "default",
 ): Promise<BacklogItem | null> {
-  await ensureDemoScan();
-  return patchPersistedBacklogItem(scanId, itemId, patch);
+  await ensureDemoScan(workspaceId);
+  return patchPersistedBacklogItem(scanIdForWorkspace(scanId, workspaceId), itemId, patch, workspaceId);
 }
 
-export async function compareScans(baseId: string, targetId: string): Promise<ScanComparison | null> {
-  await ensureDemoScan();
+export async function compareScans(baseId: string, targetId: string, workspaceId = "default"): Promise<ScanComparison | null> {
+  await ensureDemoScan(workspaceId);
   if (baseId === targetId) {
     throw new ScanInputError("Choose two different scans to compare.");
   }
 
   const [base, target] = await Promise.all([
-    getScanWithResults(baseId),
-    getScanWithResults(targetId),
+    getScanWithResults(scanIdForWorkspace(baseId, workspaceId), workspaceId),
+    getScanWithResults(scanIdForWorkspace(targetId, workspaceId), workspaceId),
   ]);
   if (!base || !target) return null;
 
@@ -212,17 +224,19 @@ export async function compareScans(baseId: string, targetId: string): Promise<Sc
 export async function updateTokens(
   id: string,
   tokens: TokenProposal[],
+  workspaceId = "default",
 ): Promise<TokenProposal[] | null> {
-  return replacePersistedTokens(id, tokens);
+  return replacePersistedTokens(scanIdForWorkspace(id, workspaceId), tokens, workspaceId);
 }
 
-export async function retryScan(id: string): Promise<PersistedScan | null> {
-  await ensureDemoScan();
+export async function retryScan(id: string, workspaceId = "default"): Promise<PersistedScan | null> {
+  await ensureDemoScan(workspaceId);
   if (id === "demo") {
-    const scan = await resetScanRecord(id);
+    const demoId = workspaceDemoId(workspaceId);
+    const scan = await resetScanRecord(demoId, workspaceId);
     if (!scan) return null;
     await completeScanRecord({
-      scanId: "demo",
+      scanId: demoId,
       pageUrls: [...new Set(demoSnapshots.map((snapshot) => snapshot.pageUrl))],
       snapshots: demoSnapshots,
       screenshots: demoScreenshots,
@@ -230,30 +244,31 @@ export async function retryScan(id: string): Promise<PersistedScan | null> {
       tokens: demoTokens,
       warnings: [],
     });
-    return getScanRecord(id);
+    return getScanRecord(demoId, workspaceId);
   }
 
-  const scan = await resetScanRecord(id);
+  const scan = await resetScanRecord(scanIdForWorkspace(id, workspaceId), workspaceId);
   if (!scan) return null;
-  return startExecution(scan);
+  return startExecution(scan, workspaceId);
 }
 
 export async function exportTokens(
   id: string,
   format: "css" | "json",
+  workspaceId = "default",
 ): Promise<string | Record<string, unknown> | null> {
-  const tokens = await getTokens(id);
+  const tokens = await getTokens(id, workspaceId);
   if (!tokens) return null;
   return format === "css" ? exportTokensCss(tokens) : exportTokensJson(tokens);
 }
 
-async function executeScan(scanId: string): Promise<void> {
-  const scan = await getScanRecord(scanId);
+async function executeScan(scanId: string, workspaceId = "default"): Promise<void> {
+  const scan = await getScanRecord(scanId, workspaceId);
   if (!scan) return;
 
   try {
     await markScanRunning(scanId);
-    const settings = await getWorkspaceSettings();
+    const settings = await getWorkspaceSettings(workspaceId);
     const scanResult = await scanner.scan(scan.rootUrl, {
       maxPages: isServerlessRuntime() ? Math.min(scan.maxPages, 3) : scan.maxPages,
       timeoutMs: isServerlessRuntime() ? 12_000 : undefined,
@@ -289,14 +304,16 @@ async function executeScan(scanId: string): Promise<void> {
 export async function exportStakeholderReport(
   id: string,
   format: "markdown" | "html",
+  workspaceId = "default",
 ): Promise<string | null> {
-  await ensureDemoScan();
+  await ensureDemoScan(workspaceId);
+  const scanId = scanIdForWorkspace(id, workspaceId);
   const [scan, results, tokens, backlog, screenshots] = await Promise.all([
-    getScanRecord(id),
-    getPersistedResults(id),
-    getPersistedTokens(id),
-    getBacklog(id),
-    getPersistedScreenshots(id),
+    getScanRecord(scanId, workspaceId),
+    getPersistedResults(scanId, workspaceId),
+    getPersistedTokens(scanId, workspaceId),
+    getBacklog(scanId, workspaceId),
+    getPersistedScreenshots(scanId, workspaceId),
   ]);
   if (!scan || !results || !tokens || !backlog) return null;
 
@@ -415,13 +432,13 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-async function startExecution(scan: PersistedScan): Promise<PersistedScan> {
+async function startExecution(scan: PersistedScan, workspaceId = "default"): Promise<PersistedScan> {
   if (isServerlessRuntime()) {
-    await executeScan(scan.id);
-    return (await getScanRecord(scan.id)) ?? scan;
+    await executeScan(scan.id, workspaceId);
+    return (await getScanRecord(scan.id, workspaceId)) ?? scan;
   }
 
-  void executeScan(scan.id);
+  void executeScan(scan.id, workspaceId);
   return scan;
 }
 
@@ -430,6 +447,14 @@ function isServerlessRuntime(): boolean {
 }
 
 export class ScanInputError extends Error {}
+
+function workspaceDemoId(workspaceId: string): string {
+  return workspaceId === "default" ? "demo" : `demo-${workspaceId}`;
+}
+
+function scanIdForWorkspace(id: string, workspaceId: string): string {
+  return id === "demo" ? workspaceDemoId(workspaceId) : id;
+}
 
 function buildMetricDeltas(base: DesignDebtResults, target: DesignDebtResults): MetricDelta[] {
   return [
