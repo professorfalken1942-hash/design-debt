@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { chromium as localChromium } from "playwright";
-import type { ElementSnapshot } from "../../shared/src/index.js";
+import type { ElementSnapshot, PageScreenshot } from "../../shared/src/index.js";
 import { shouldCrawlLink, validatePublicHttpUrl } from "./url-validation.js";
 
 export { shouldCrawlLink, validatePublicHttpUrl } from "./url-validation.js";
@@ -10,11 +10,14 @@ export interface ScannerOptions {
   maxPages: number;
   timeoutMs?: number;
   allowPrivateHosts?: boolean;
+  ignoredPaths?: string[];
+  captureScreenshots?: boolean;
 }
 
 export interface ScanExecutionResult {
   pages: string[];
   snapshots: ElementSnapshot[];
+  screenshots: Omit<PageScreenshot, "id" | "scanId">[];
   warnings: string[];
 }
 
@@ -76,8 +79,10 @@ async function crawl(
   const queue = [rootUrl];
   const visited = new Set<string>();
   const snapshots: ElementSnapshot[] = [];
+  const screenshots: Omit<PageScreenshot, "id" | "scanId">[] = [];
   const warnings: string[] = [];
   const page = await browser.newPage();
+  await page.setViewportSize({ width: 1365, height: 900 });
   page.setDefaultTimeout(options.timeoutMs ?? 20_000);
 
   while (queue.length > 0 && visited.size < maxPages) {
@@ -89,11 +94,15 @@ async function crawl(
       await page.goto(url, { waitUntil: "networkidle", timeout: options.timeoutMs ?? 20_000 });
       await page.waitForTimeout(300);
       snapshots.push(...(await extractSnapshots(page, url)));
+      if (options.captureScreenshots !== false) {
+        screenshots.push(await captureScreenshot(page, url));
+      }
       const links = await page.$$eval("a[href]", (anchors) =>
         anchors.map((anchor) => (anchor as HTMLAnchorElement).href),
       );
       for (const link of links) {
         const next = shouldCrawlLink(rootUrl, link);
+        if (next && isIgnoredPath(next, options.ignoredPaths ?? [])) continue;
         if (next && !visited.has(next) && !queue.includes(next)) queue.push(next);
       }
     } catch (error) {
@@ -102,7 +111,33 @@ async function crawl(
   }
 
   await page.close();
-  return { pages: [...visited], snapshots, warnings };
+  return { pages: [...visited], snapshots, screenshots, warnings };
+}
+
+function isIgnoredPath(url: string, ignoredPaths: string[]): boolean {
+  if (!ignoredPaths.length) return false;
+  const pathname = new URL(url).pathname;
+  return ignoredPaths.some((path) => {
+    const trimmed = path.trim();
+    return trimmed && pathname.startsWith(trimmed.startsWith("/") ? trimmed : `/${trimmed}`);
+  });
+}
+
+async function captureScreenshot(page: Page, pageUrl: string): Promise<Omit<PageScreenshot, "id" | "scanId">> {
+  const viewport = page.viewportSize() ?? { width: 1365, height: 900 };
+  const image = await page.screenshot({
+    type: "jpeg",
+    quality: 58,
+    fullPage: false,
+  });
+
+  return {
+    pageUrl,
+    dataUrl: `data:image/jpeg;base64,${image.toString("base64")}`,
+    width: viewport.width,
+    height: viewport.height,
+    capturedAt: new Date().toISOString(),
+  };
 }
 
 async function extractSnapshots(page: Page, pageUrl: string): Promise<ElementSnapshot[]> {

@@ -5,13 +5,19 @@ import type {
   Finding,
   FindingChange,
   MetricDelta,
+  PageGroup,
+  PageScreenshot,
   ScanComparison,
   ScanSummary,
+  ScheduledScan,
+  TeamMember,
+  WorkspaceSettings,
   TokenProposal,
 } from "../../../../packages/shared/src/index.js";
 import {
   analyzeSnapshots,
   demoResults,
+  demoScreenshots,
   demoSnapshots,
   demoTokens,
   exportTokensCss,
@@ -26,17 +32,24 @@ import {
   failScanRecord,
   getPersistedResults,
   getPersistedBacklog,
+  getPersistedScreenshots,
   getPersistedTokens,
   getScanRecord,
   getScanWithResults,
+  getWorkspaceSettings,
   listScanRecords,
   markScanRunning,
   patchPersistedBacklogItem,
+  replacePageGroups,
   replacePersistedTokens,
+  replaceScanSchedules,
+  replaceTeamMembers,
   resetScanRecord,
   seedPersistedBacklog,
+  seedPersistedScreenshots,
   setScanProgress,
   type PersistedScan,
+  updateWorkspaceSettings,
 } from "./scan-repository.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -44,7 +57,11 @@ const scanner = new PlaywrightWebsiteScanner();
 
 export async function ensureDemoScan(): Promise<void> {
   const existing = await getScanRecord("demo");
-  if (existing) return;
+  if (existing) {
+    const screenshots = await getPersistedScreenshots("demo");
+    if (!screenshots?.length) await seedPersistedScreenshots("demo", demoScreenshots);
+    return;
+  }
 
   await prisma.scan.create({
     data: {
@@ -66,6 +83,7 @@ export async function ensureDemoScan(): Promise<void> {
     scanId: "demo",
     pageUrls: [...new Set(demoSnapshots.map((snapshot) => snapshot.pageUrl))],
     snapshots: demoSnapshots,
+    screenshots: demoScreenshots,
     results: demoResults,
     tokens: demoTokens,
     warnings: [],
@@ -121,6 +139,41 @@ export async function getBacklog(id: string): Promise<BacklogItem[] | null> {
   return seedPersistedBacklog(id, buildBacklogSuggestions(results, tokens));
 }
 
+export async function getScreenshots(id: string): Promise<PageScreenshot[] | null> {
+  await ensureDemoScan();
+  const screenshots = await getPersistedScreenshots(id);
+  if (id === "demo" && !screenshots?.length) return seedPersistedScreenshots(id, demoScreenshots);
+  return screenshots;
+}
+
+export async function getSettings(): Promise<WorkspaceSettings> {
+  return getWorkspaceSettings();
+}
+
+export async function saveSettings(
+  patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
+): Promise<WorkspaceSettings> {
+  return updateWorkspaceSettings(patch);
+}
+
+export async function savePageGroups(
+  groups: Array<Pick<PageGroup, "id" | "name" | "matchers" | "color">>,
+): Promise<WorkspaceSettings> {
+  return replacePageGroups(groups);
+}
+
+export async function saveSchedules(
+  schedules: Array<Pick<ScheduledScan, "id" | "rootUrl" | "cadence" | "maxPages" | "enabled" | "nextRunAt">>,
+): Promise<WorkspaceSettings> {
+  return replaceScanSchedules(schedules);
+}
+
+export async function saveTeamMembers(
+  members: Array<Pick<TeamMember, "id" | "name" | "email" | "role">>,
+): Promise<WorkspaceSettings> {
+  return replaceTeamMembers(members);
+}
+
 export async function updateBacklogItem(
   scanId: string,
   itemId: string,
@@ -172,6 +225,7 @@ export async function retryScan(id: string): Promise<PersistedScan | null> {
       scanId: "demo",
       pageUrls: [...new Set(demoSnapshots.map((snapshot) => snapshot.pageUrl))],
       snapshots: demoSnapshots,
+      screenshots: demoScreenshots,
       results: demoResults,
       tokens: demoTokens,
       warnings: [],
@@ -199,9 +253,12 @@ async function executeScan(scanId: string): Promise<void> {
 
   try {
     await markScanRunning(scanId);
+    const settings = await getWorkspaceSettings();
     const scanResult = await scanner.scan(scan.rootUrl, {
       maxPages: isServerlessRuntime() ? Math.min(scan.maxPages, 3) : scan.maxPages,
       timeoutMs: isServerlessRuntime() ? 12_000 : undefined,
+      ignoredPaths: settings.ignoredPaths,
+      captureScreenshots: settings.screenshotEvidence,
     });
     await setScanProgress(scanId, 76);
     const snapshots = scanResult.snapshots.length ? scanResult.snapshots : demoSnapshots;
@@ -212,6 +269,7 @@ async function executeScan(scanId: string): Promise<void> {
       scanId,
       pageUrls: scanResult.pages,
       snapshots,
+      screenshots: scanResult.screenshots,
       results,
       tokens,
       warnings: scanResult.warnings,
@@ -226,6 +284,135 @@ async function executeScan(scanId: string): Promise<void> {
       // The scan may have been deleted while a background crawl was still running.
     }
   }
+}
+
+export async function exportStakeholderReport(
+  id: string,
+  format: "markdown" | "html",
+): Promise<string | null> {
+  await ensureDemoScan();
+  const [scan, results, tokens, backlog, screenshots] = await Promise.all([
+    getScanRecord(id),
+    getPersistedResults(id),
+    getPersistedTokens(id),
+    getBacklog(id),
+    getPersistedScreenshots(id),
+  ]);
+  if (!scan || !results || !tokens || !backlog) return null;
+
+  return format === "html"
+    ? htmlReport(scan, results, tokens, backlog, screenshots ?? [])
+    : markdownReport(scan, results, tokens, backlog);
+}
+
+function markdownReport(
+  scan: ScanSummary,
+  results: DesignDebtResults,
+  tokens: TokenProposal[],
+  backlog: BacklogItem[],
+): string {
+  return [
+    "# UIpen Stakeholder Report",
+    "",
+    `Source: ${scan.rootUrl}`,
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Summary",
+    "",
+    `- Design Health Score: ${results.healthScore}`,
+    `- Findings: ${results.findings.length}`,
+    `- Included tokens: ${tokens.filter((token) => token.status === "enabled").length}`,
+    `- Token decisions pending: ${tokens.filter((token) => token.status === "needs-review").length}`,
+    `- Open backlog items: ${backlog.filter((item) => item.status === "open" || item.status === "accepted").length}`,
+    "",
+    "## Top Backlog",
+    "",
+    ...(backlog.length
+      ? backlog.slice(0, 8).map((item) => `- [${item.status}] ${item.title} (${item.priority}, ${item.owner || "Unassigned"})`)
+      : ["- No backlog items yet."]),
+    "",
+    "## Highest-Impact Findings",
+    "",
+    ...(results.findings.slice(0, 6).map((finding) => `- ${finding.title}: ${finding.description}`)),
+    "",
+  ].join("\n");
+}
+
+function htmlReport(
+  scan: ScanSummary,
+  results: DesignDebtResults,
+  tokens: TokenProposal[],
+  backlog: BacklogItem[],
+  screenshots: PageScreenshot[],
+): string {
+  const topFindings = results.findings.slice(0, 6);
+  const evidence = screenshots.slice(0, 6);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UIpen stakeholder report</title>
+  <style>
+    body{margin:0;background:#f8fafc;color:#111827;font-family:Raleway,Arial,sans-serif;line-height:1.55}
+    main{max-width:1080px;margin:0 auto;padding:32px}
+    header{border-bottom:1px solid #dbe3ea;padding-bottom:24px;margin-bottom:24px}
+    h1{font-size:42px;line-height:1;margin:0 0 12px}
+    h2{font-size:22px;margin:0 0 12px}
+    .muted{color:#52616b}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:18px 0 28px}
+    .card{background:white;border:1px solid #dbe3ea;border-radius:8px;padding:16px;break-inside:avoid}
+    .metric strong{display:block;font-size:34px;line-height:1.1}
+    .badge{display:inline-block;border:1px solid #bdd7e8;border-radius:999px;color:#005f8f;padding:4px 10px;font-size:13px}
+    ol,ul{padding-left:22px}
+    li{margin:8px 0}
+    img{display:block;max-width:100%;border:1px solid #dbe3ea;border-radius:8px}
+    .screens{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+    .page-break{break-before:page}
+    @media print{body{background:white}main{padding:0}.card{box-shadow:none}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="badge">Stakeholder report</span>
+    <h1>Design-system audit</h1>
+    <p class="muted">${escapeHtml(scan.rootUrl)} · Generated ${escapeHtml(new Date().toLocaleString("en-US"))}</p>
+  </header>
+
+  <section class="grid">
+    <article class="card metric"><span>Design Health Score</span><strong>${results.healthScore}</strong></article>
+    <article class="card metric"><span>Findings</span><strong>${results.findings.length}</strong></article>
+    <article class="card metric"><span>Included tokens</span><strong>${tokens.filter((token) => token.status === "enabled").length}</strong></article>
+    <article class="card metric"><span>Backlog items</span><strong>${backlog.length}</strong></article>
+  </section>
+
+  <section class="card">
+    <h2>Executive summary</h2>
+    <p>This scan found ${results.metrics.potentialInconsistencies} potential consistency issues across ${scan.pageCount} pages. The highest-value work is to resolve accepted backlog items, approve reusable token candidates, and keep visual evidence attached to each finding.</p>
+  </section>
+
+  <section class="grid">
+    <article class="card"><h2>Top backlog</h2><ul>${backlog.slice(0, 8).map((item) => `<li><strong>${escapeHtml(item.title)}</strong><br><span class="muted">${escapeHtml(item.priority)} · ${escapeHtml(item.status)} · ${escapeHtml(item.owner || "Unassigned")}</span></li>`).join("") || "<li>No backlog items yet.</li>"}</ul></article>
+    <article class="card"><h2>Top findings</h2><ul>${topFindings.map((finding) => `<li><strong>${escapeHtml(finding.title)}</strong><br><span class="muted">${escapeHtml(finding.description)}</span></li>`).join("") || "<li>No findings available.</li>"}</ul></article>
+  </section>
+
+  <section class="page-break">
+    <h2>Visual evidence</h2>
+    <div class="screens">${evidence.map((screenshot) => `<figure class="card"><img src="${screenshot.dataUrl}" width="${screenshot.width}" height="${screenshot.height}" alt="Screenshot of ${escapeHtml(screenshot.pageUrl)}"><figcaption class="muted">${escapeHtml(screenshot.pageUrl)}</figcaption></figure>`).join("") || "<p>No screenshots captured for this scan.</p>"}</div>
+  </section>
+</main>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function startExecution(scan: PersistedScan): Promise<PersistedScan> {

@@ -1,6 +1,17 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, computed, inject, signal } from "@angular/core";
-import type { BacklogItem, DesignDebtResults, ScanComparison, ScanSummary, TokenProposal } from "@designdebt/shared";
+import type {
+  BacklogItem,
+  DesignDebtResults,
+  PageGroup,
+  PageScreenshot,
+  ScanComparison,
+  ScanSummary,
+  ScheduledScan,
+  TeamMember,
+  TokenProposal,
+  WorkspaceSettings,
+} from "@designdebt/shared";
 
 const API_BASE = "/api";
 
@@ -11,6 +22,8 @@ export class ApiService {
   readonly results = signal<DesignDebtResults | null>(null);
   readonly tokens = signal<TokenProposal[]>([]);
   readonly backlog = signal<BacklogItem[]>([]);
+  readonly screenshots = signal<PageScreenshot[]>([]);
+  readonly settings = signal<WorkspaceSettings | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly pendingScanUrl = signal<string | null>(null);
@@ -76,12 +89,14 @@ export class ApiService {
     const scan = await firstValue<ScanSummary>(this.http.get<ScanSummary>(`${API_BASE}/scans/${id}`));
     this.activeScan.set(scan);
     if (scan.status === "completed") {
-      const [results, tokenResponse] = await Promise.all([
+      const [results, tokenResponse, screenshotResponse] = await Promise.all([
         firstValue<DesignDebtResults>(this.http.get<DesignDebtResults>(`${API_BASE}/scans/${id}/results`)),
         firstValue<{ tokens: TokenProposal[] }>(this.http.get<{ tokens: TokenProposal[] }>(`${API_BASE}/scans/${id}/tokens`)),
+        firstValue<{ screenshots: PageScreenshot[] }>(this.http.get<{ screenshots: PageScreenshot[] }>(`${API_BASE}/scans/${id}/screenshots`)),
       ]);
       this.results.set(results);
       this.tokens.set(tokenResponse.tokens);
+      this.screenshots.set(screenshotResponse.screenshots);
       const backlogResponse = await firstValue<{ backlog: BacklogItem[] }>(
         this.http.get<{ backlog: BacklogItem[] }>(`${API_BASE}/scans/${id}/backlog`),
       );
@@ -90,7 +105,46 @@ export class ApiService {
       this.results.set(null);
       this.tokens.set([]);
       this.backlog.set([]);
+      this.screenshots.set([]);
     }
+  }
+
+  async loadSettings(): Promise<WorkspaceSettings> {
+    const settings = await firstValue<WorkspaceSettings>(this.http.get<WorkspaceSettings>(`${API_BASE}/settings`));
+    this.settings.set(settings);
+    return settings;
+  }
+
+  async saveSettings(
+    patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
+  ): Promise<WorkspaceSettings> {
+    const settings = await firstValue<WorkspaceSettings>(this.http.put<WorkspaceSettings>(`${API_BASE}/settings`, patch));
+    this.settings.set(settings);
+    return settings;
+  }
+
+  async savePageGroups(pageGroups: PageGroup[]): Promise<WorkspaceSettings> {
+    const settings = await firstValue<WorkspaceSettings>(
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/page-groups`, { pageGroups }),
+    );
+    this.settings.set(settings);
+    return settings;
+  }
+
+  async saveSchedules(schedules: ScheduledScan[]): Promise<WorkspaceSettings> {
+    const settings = await firstValue<WorkspaceSettings>(
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/schedules`, { schedules }),
+    );
+    this.settings.set(settings);
+    return settings;
+  }
+
+  async saveTeamMembers(teamMembers: TeamMember[]): Promise<WorkspaceSettings> {
+    const settings = await firstValue<WorkspaceSettings>(
+      this.http.put<WorkspaceSettings>(`${API_BASE}/settings/team-members`, { teamMembers }),
+    );
+    this.settings.set(settings);
+    return settings;
   }
 
   async saveTokens(tokens: TokenProposal[]): Promise<void> {
@@ -113,6 +167,7 @@ export class ApiService {
       this.activeScan.set(scan);
       this.results.set(null);
       this.tokens.set([]);
+      this.screenshots.set([]);
       this.pollScan(scan.id);
     } catch (error) {
       this.error.set(apiErrorMessage(error, "Unable to retry scan."));
@@ -127,10 +182,11 @@ export class ApiService {
     try {
       await firstValue<void>(this.http.delete<void>(`${API_BASE}/scans/${id}`));
       if (this.activeScan()?.id === id) {
-      this.activeScan.set(null);
-      this.results.set(null);
-      this.tokens.set([]);
-      this.backlog.set([]);
+        this.activeScan.set(null);
+        this.results.set(null);
+        this.tokens.set([]);
+        this.backlog.set([]);
+        this.screenshots.set([]);
       }
     } catch (error) {
       this.error.set(apiErrorMessage(error, "Unable to delete scan."));
@@ -143,6 +199,13 @@ export class ApiService {
     if (!scan) return "";
     const response = await fetch(`${API_BASE}/scans/${scan.id}/tokens/export?format=${format}`);
     return format === "css" ? response.text() : JSON.stringify(await response.json(), null, 2);
+  }
+
+  async reportExport(format: "markdown" | "html"): Promise<string> {
+    const scan = this.activeScan();
+    if (!scan) return "";
+    const response = await fetch(`${API_BASE}/scans/${scan.id}/report?format=${format}`);
+    return response.text();
   }
 
   async updateBacklogItem(

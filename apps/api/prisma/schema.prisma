@@ -22,6 +22,7 @@ model Scan {
   analysis    Json?
   pages       Page[]
   snapshots   ElementSnapshot[]
+  screenshots PageScreenshot[]
   findings    Finding[]
   tokens      TokenProposal[]
   backlog     BacklogItem[]
@@ -48,6 +49,19 @@ model ElementSnapshot {
   width     Int?
   height    Int?
   scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+}
+
+model PageScreenshot {
+  id         String   @id
+  scanId     String
+  pageUrl    String
+  dataUrl    String
+  width      Int
+  height     Int
+  capturedAt DateTime @default(now())
+  scan       Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
   @@index([scanId])
 }
@@ -100,4 +114,48 @@ model BacklogItem {
 
   @@unique([scanId, sourceType, sourceId])
   @@index([scanId])
+}
+
+model WorkspaceSettings {
+  id                  String   @id @default("default")
+  teamName            String   @default("UIpen Team")
+  defaultPageLimit    Int      @default(20)
+  crawlerMode         String   @default("same-origin")
+  namingPreset        String   @default("scale")
+  reviewThreshold     String   @default("balanced")
+  ignoredPaths        Json?
+  teamNotes           String   @default("")
+  screenshotEvidence  Boolean  @default(true)
+  reportFormatDefault String   @default("html")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PageGroup {
+  id        String   @id
+  name      String
+  matchers  Json
+  color     String   @default("#4cbaf7")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScanSchedule {
+  id        String    @id
+  rootUrl   String
+  cadence   String
+  maxPages  Int       @default(20)
+  enabled   Boolean   @default(true)
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model TeamMember {
+  id        String   @id
+  name      String
+  email     String
+  role      String   @default("viewer")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

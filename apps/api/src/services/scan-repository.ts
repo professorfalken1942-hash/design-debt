@@ -5,9 +5,14 @@ import type {
   BacklogStatus,
   ElementSnapshot,
   Finding,
+  PageGroup,
+  PageScreenshot,
   ScanStatus,
+  ScheduledScan,
   ScanSummary,
+  TeamMember,
   TokenProposal,
+  WorkspaceSettings,
 } from "../../../../packages/shared/src/index.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -26,6 +31,45 @@ type TokenProposalRecord = {
   confidence: string | null;
   mapsTo: string | null;
 };
+type SettingsRecord = {
+  id: string;
+  teamName: string;
+  defaultPageLimit: number;
+  crawlerMode: string;
+  namingPreset: string;
+  reviewThreshold: string;
+  ignoredPaths: unknown;
+  teamNotes: string;
+  screenshotEvidence: boolean;
+  reportFormatDefault: string;
+  updatedAt: Date;
+};
+type PageGroupRecord = {
+  id: string;
+  name: string;
+  matchers: unknown;
+  color: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type ScanScheduleRecord = {
+  id: string;
+  rootUrl: string;
+  cadence: string;
+  maxPages: number;
+  enabled: boolean;
+  nextRunAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type TeamMemberRecord = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export interface PersistedScan extends ScanSummary {
   maxPages: number;
@@ -35,6 +79,7 @@ export interface CompleteScanInput {
   scanId: string;
   pageUrls: string[];
   snapshots: ElementSnapshot[];
+  screenshots: Omit<PageScreenshot, "id" | "scanId">[];
   results: DesignDebtResults;
   tokens: TokenProposal[];
   warnings: string[];
@@ -92,6 +137,7 @@ export async function completeScanRecord(input: CompleteScanInput): Promise<void
   await prisma.$transaction([
     prisma.page.deleteMany({ where: { scanId: input.scanId } }),
     prisma.elementSnapshot.deleteMany({ where: { scanId: input.scanId } }),
+    prisma.pageScreenshot.deleteMany({ where: { scanId: input.scanId } }),
     prisma.finding.deleteMany({ where: { scanId: input.scanId } }),
     prisma.tokenProposal.deleteMany({ where: { scanId: input.scanId } }),
     prisma.backlogItem.deleteMany({ where: { scanId: input.scanId } }),
@@ -115,6 +161,21 @@ export async function completeScanRecord(input: CompleteScanInput): Promise<void
         styles: snapshotStyles(snapshot),
       })),
     }),
+    ...(input.screenshots.length
+      ? [
+          prisma.pageScreenshot.createMany({
+            data: input.screenshots.map((screenshot) => ({
+              id: scopedId(input.scanId, `screenshot-${screenshot.pageUrl}`),
+              scanId: input.scanId,
+              pageUrl: screenshot.pageUrl,
+              dataUrl: screenshot.dataUrl,
+              width: screenshot.width,
+              height: screenshot.height,
+              capturedAt: new Date(screenshot.capturedAt),
+            })),
+          }),
+        ]
+      : []),
     prisma.finding.createMany({
       data: input.results.findings.map((finding) => ({
         ...finding,
@@ -164,6 +225,7 @@ export async function resetScanRecord(scanId: string): Promise<PersistedScan | n
 
     await transaction.page.deleteMany({ where: { scanId } });
     await transaction.elementSnapshot.deleteMany({ where: { scanId } });
+    await transaction.pageScreenshot.deleteMany({ where: { scanId } });
     await transaction.finding.deleteMany({ where: { scanId } });
     await transaction.tokenProposal.deleteMany({ where: { scanId } });
     await transaction.backlogItem.deleteMany({ where: { scanId } });
@@ -193,6 +255,7 @@ export async function deleteScanRecord(scanId: string): Promise<boolean> {
 
     await transaction.page.deleteMany({ where: { scanId } });
     await transaction.elementSnapshot.deleteMany({ where: { scanId } });
+    await transaction.pageScreenshot.deleteMany({ where: { scanId } });
     await transaction.finding.deleteMany({ where: { scanId } });
     await transaction.tokenProposal.deleteMany({ where: { scanId } });
     await transaction.scan.delete({ where: { id: scanId } });
@@ -332,6 +395,163 @@ export async function patchPersistedBacklogItem(
   return toBacklogItem(updated);
 }
 
+export async function getPersistedScreenshots(scanId: string): Promise<PageScreenshot[] | null> {
+  const scan = await prisma.scan.findUnique({
+    where: { id: scanId },
+    select: { id: true },
+  });
+  if (!scan) return null;
+
+  const screenshots = await prisma.pageScreenshot.findMany({
+    where: { scanId },
+    orderBy: { capturedAt: "asc" },
+  });
+
+  return screenshots.map(toPageScreenshot);
+}
+
+export async function seedPersistedScreenshots(
+  scanId: string,
+  screenshots: Omit<PageScreenshot, "id" | "scanId">[],
+): Promise<PageScreenshot[] | null> {
+  const scan = await prisma.scan.findUnique({
+    where: { id: scanId },
+    select: { id: true },
+  });
+  if (!scan) return null;
+
+  if (screenshots.length) {
+    await prisma.$transaction(
+      screenshots.map((screenshot) =>
+        prisma.pageScreenshot.upsert({
+          where: { id: scopedId(scanId, `screenshot-${screenshot.pageUrl}`) },
+          update: {},
+          create: {
+            id: scopedId(scanId, `screenshot-${screenshot.pageUrl}`),
+            scanId,
+            pageUrl: screenshot.pageUrl,
+            dataUrl: screenshot.dataUrl,
+            width: screenshot.width,
+            height: screenshot.height,
+            capturedAt: new Date(screenshot.capturedAt),
+          },
+        }),
+      ),
+    );
+  }
+
+  return getPersistedScreenshots(scanId);
+}
+
+export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
+  await ensureWorkspaceSettingsRecord();
+  const [settings, pageGroups, schedules, teamMembers] = await Promise.all([
+    prisma.workspaceSettings.findUniqueOrThrow({ where: { id: "default" } }),
+    prisma.pageGroup.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.scanSchedule.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.teamMember.findMany({ orderBy: { createdAt: "asc" } }),
+  ]);
+
+  return toWorkspaceSettings(settings, pageGroups, schedules, teamMembers);
+}
+
+export async function updateWorkspaceSettings(
+  patch: Partial<Pick<WorkspaceSettings, "teamName" | "defaultPageLimit" | "crawlerMode" | "namingPreset" | "reviewThreshold" | "ignoredPaths" | "teamNotes" | "screenshotEvidence" | "reportFormatDefault">>,
+): Promise<WorkspaceSettings> {
+  await ensureWorkspaceSettingsRecord();
+  await prisma.workspaceSettings.update({
+    where: { id: "default" },
+    data: {
+      teamName: patch.teamName,
+      defaultPageLimit: patch.defaultPageLimit,
+      crawlerMode: patch.crawlerMode,
+      namingPreset: patch.namingPreset,
+      reviewThreshold: patch.reviewThreshold,
+      ignoredPaths: patch.ignoredPaths as never,
+      teamNotes: patch.teamNotes,
+      screenshotEvidence: patch.screenshotEvidence,
+      reportFormatDefault: patch.reportFormatDefault,
+    },
+  });
+  return getWorkspaceSettings();
+}
+
+export async function replacePageGroups(
+  groups: Array<Pick<PageGroup, "id" | "name" | "matchers" | "color">>,
+): Promise<WorkspaceSettings> {
+  await prisma.$transaction([
+    prisma.pageGroup.deleteMany(),
+    ...(groups.length
+      ? [
+          prisma.pageGroup.createMany({
+            data: groups.map((group) => ({
+              id: group.id || nanoid(),
+              name: group.name,
+              matchers: group.matchers as never,
+              color: group.color,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+  return getWorkspaceSettings();
+}
+
+export async function replaceScanSchedules(
+  schedules: Array<Pick<ScheduledScan, "id" | "rootUrl" | "cadence" | "maxPages" | "enabled" | "nextRunAt">>,
+): Promise<WorkspaceSettings> {
+  await prisma.$transaction([
+    prisma.scanSchedule.deleteMany(),
+    ...(schedules.length
+      ? [
+          prisma.scanSchedule.createMany({
+            data: schedules.map((schedule) => ({
+              id: schedule.id || nanoid(),
+              rootUrl: schedule.rootUrl,
+              cadence: schedule.cadence,
+              maxPages: schedule.maxPages,
+              enabled: schedule.enabled,
+              nextRunAt: schedule.nextRunAt ? new Date(schedule.nextRunAt) : null,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+  return getWorkspaceSettings();
+}
+
+export async function replaceTeamMembers(
+  members: Array<Pick<TeamMember, "id" | "name" | "email" | "role">>,
+): Promise<WorkspaceSettings> {
+  await prisma.$transaction([
+    prisma.teamMember.deleteMany(),
+    ...(members.length
+      ? [
+          prisma.teamMember.createMany({
+            data: members.map((member) => ({
+              id: member.id || nanoid(),
+              name: member.name,
+              email: member.email,
+              role: member.role,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+  return getWorkspaceSettings();
+}
+
+async function ensureWorkspaceSettingsRecord(): Promise<void> {
+  await prisma.workspaceSettings.upsert({
+    where: { id: "default" },
+    update: {},
+    create: {
+      id: "default",
+      ignoredPaths: ["/admin", "/checkout", "/account"] as never,
+    },
+  });
+}
+
 function toScanSummary(scan: {
   id: string;
   rootUrl: string;
@@ -392,6 +612,89 @@ function toBacklogItem(item: {
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
   };
+}
+
+function toPageScreenshot(item: {
+  id: string;
+  scanId: string;
+  pageUrl: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+  capturedAt: Date;
+}): PageScreenshot {
+  return {
+    id: item.id,
+    scanId: item.scanId,
+    pageUrl: item.pageUrl,
+    dataUrl: item.dataUrl,
+    width: item.width,
+    height: item.height,
+    capturedAt: item.capturedAt.toISOString(),
+  };
+}
+
+function toWorkspaceSettings(
+  settings: SettingsRecord,
+  pageGroups: PageGroupRecord[],
+  schedules: ScanScheduleRecord[],
+  teamMembers: TeamMemberRecord[],
+): WorkspaceSettings {
+  return {
+    id: settings.id,
+    teamName: settings.teamName,
+    defaultPageLimit: settings.defaultPageLimit,
+    crawlerMode: settings.crawlerMode as WorkspaceSettings["crawlerMode"],
+    namingPreset: settings.namingPreset as WorkspaceSettings["namingPreset"],
+    reviewThreshold: settings.reviewThreshold as WorkspaceSettings["reviewThreshold"],
+    ignoredPaths: stringArray(settings.ignoredPaths),
+    teamNotes: settings.teamNotes,
+    screenshotEvidence: settings.screenshotEvidence,
+    reportFormatDefault: settings.reportFormatDefault as WorkspaceSettings["reportFormatDefault"],
+    updatedAt: settings.updatedAt.toISOString(),
+    pageGroups: pageGroups.map(toPageGroup),
+    schedules: schedules.map(toScanSchedule),
+    teamMembers: teamMembers.map(toTeamMember),
+  };
+}
+
+function toPageGroup(group: PageGroupRecord): PageGroup {
+  return {
+    id: group.id,
+    name: group.name,
+    matchers: stringArray(group.matchers),
+    color: group.color,
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
+  };
+}
+
+function toScanSchedule(schedule: ScanScheduleRecord): ScheduledScan {
+  return {
+    id: schedule.id,
+    rootUrl: schedule.rootUrl,
+    cadence: schedule.cadence as ScheduledScan["cadence"],
+    maxPages: schedule.maxPages,
+    enabled: schedule.enabled,
+    nextRunAt: schedule.nextRunAt?.toISOString() ?? null,
+    createdAt: schedule.createdAt.toISOString(),
+    updatedAt: schedule.updatedAt.toISOString(),
+  };
+}
+
+function toTeamMember(member: TeamMemberRecord): TeamMember {
+  return {
+    id: member.id,
+    name: member.name,
+    email: member.email,
+    role: member.role as TeamMember["role"],
+    createdAt: member.createdAt.toISOString(),
+    updatedAt: member.updatedAt.toISOString(),
+  };
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function snapshotStyles(snapshot: ElementSnapshot): Record<string, string | undefined> {

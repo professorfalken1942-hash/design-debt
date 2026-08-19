@@ -131,6 +131,26 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
             }
           </section>
 
+          @if (api.screenshots().length) {
+            <section class="section panel section-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Screenshots</p>
+                  <h2 style="margin:0;">Captured page evidence</h2>
+                </div>
+                <span class="badge">{{ api.screenshots().length }} pages</span>
+              </div>
+              <div class="screenshot-strip">
+                @for (screenshot of api.screenshots().slice(0, 4); track screenshot.id) {
+                  <figure>
+                    <img [src]="screenshot.dataUrl" [alt]="'Screenshot of ' + screenshot.pageUrl" />
+                    <figcaption>{{ screenshot.pageUrl }}</figcaption>
+                  </figure>
+                }
+              </div>
+            </section>
+          }
+
           <section class="section action-strip">
             <div>
               <p class="eyebrow">Next step</p>
@@ -204,7 +224,7 @@ import { DeleteScanDialogComponent } from "./delete-scan-dialog.component";
   `,
 })
 export class ScanDetailPageComponent implements OnDestroy {
-  private readonly api = inject(ApiService);
+  readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private pollHandle: number | null = null;

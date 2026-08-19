@@ -83,6 +83,15 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                 }
               </select>
             </label>
+            <label class="field">
+              <span>Page group</span>
+              <select class="select" [ngModel]="pageGroupFilter()" (ngModelChange)="pageGroupFilter.set($event)">
+                <option value="all">All groups</option>
+                @for (group of api.settings()?.pageGroups ?? []; track group.id) {
+                  <option [value]="group.id">{{ group.name }}</option>
+                }
+              </select>
+            </label>
             <label class="toggle-field">
               <input type="checkbox" [ngModel]="tokenCandidateOnly()" (ngModelChange)="tokenCandidateOnly.set($event)" />
               <span>Token candidates only</span>
@@ -139,6 +148,12 @@ const categories = ["colors", "typography", "spacing", "borders", "shadows", "bu
                   <strong>Acceptance check</strong>
                   <p>{{ acceptanceCheck(finding) }}</p>
                 </div>
+                @if (findingScreenshot(finding); as screenshot) {
+                  <figure class="finding-screenshot">
+                    <img [src]="screenshot.dataUrl" [alt]="'Screenshot of ' + screenshot.pageUrl" />
+                    <figcaption>{{ screenshot.pageUrl }}</figcaption>
+                  </figure>
+                }
                 <div class="finding-list">
                   @for (example of findingExamples(finding); track example.pageUrl + example.selector) {
                     <div class="example-row">
@@ -233,11 +248,13 @@ export class DesignDebtPageComponent implements OnDestroy {
   readonly activeCategory = signal<(typeof categories)[number]>("colors");
   readonly severityFilter = signal<Finding["severity"] | "all">("all");
   readonly pageFilter = signal("all");
+  readonly pageGroupFilter = signal("all");
   readonly tokenCandidateOnly = signal(false);
   readonly items = computed(() => this.api.results()?.inventories[this.activeCategory()] ?? []);
   readonly filteredItems = computed(() =>
     this.items().filter((item) => {
       if (this.pageFilter() !== "all" && !item.pages.includes(this.pageFilter())) return false;
+      if (this.pageGroupFilter() !== "all" && !item.pages.some((page) => this.pageMatchesActiveGroup(page))) return false;
       if (this.tokenCandidateOnly() && !this.isTokenCandidate(item)) return false;
       return true;
     }),
@@ -249,11 +266,15 @@ export class DesignDebtPageComponent implements OnDestroy {
       if (this.pageFilter() !== "all") {
         return this.findingExamples(finding).some((example) => example.pageUrl === this.pageFilter());
       }
+      if (this.pageGroupFilter() !== "all") {
+        return this.findingExamples(finding).some((example) => this.pageMatchesActiveGroup(example.pageUrl));
+      }
       return true;
     }),
   );
 
   constructor() {
+    void this.api.loadSettings().catch(() => undefined);
     this.routeSub = this.route.paramMap.subscribe((params) => {
       const value = params.get("category");
       this.activeCategory.set(
@@ -303,8 +324,20 @@ export class DesignDebtPageComponent implements OnDestroy {
     return this.api.results()?.inventories[category].flatMap((item: InventoryItem) => item.examples).slice(0, 6) ?? [];
   }
 
+  findingScreenshot(finding: Finding) {
+    const examples = this.findingExamples(finding);
+    const pageUrl = examples[0]?.pageUrl;
+    return this.api.screenshots().find((screenshot) => screenshot.pageUrl === pageUrl) ?? this.api.screenshots()[0];
+  }
+
   availablePages(): string[] {
     return [...new Set(this.items().flatMap((item) => item.pages))].sort();
+  }
+
+  pageMatchesActiveGroup(pageUrl: string): boolean {
+    const group = this.api.settings()?.pageGroups.find((item) => item.id === this.pageGroupFilter());
+    if (!group) return true;
+    return group.matchers.some((matcher) => pageUrl.includes(matcher));
   }
 
   isTokenCandidate(item: InventoryItem): boolean {

@@ -5,9 +5,11 @@ import {
   createScan,
   deleteScan,
   exportTokens,
+  exportStakeholderReport,
   getBacklog,
   getResults,
   getScan,
+  getScreenshots,
   getTokens,
   listScans,
   retryScan,
@@ -183,6 +185,19 @@ scansRouter.get("/:id/backlog", async (request, response, next) => {
   }
 });
 
+scansRouter.get("/:id/screenshots", async (request, response, next) => {
+  try {
+    const screenshots = await getScreenshots(request.params.id);
+    if (!screenshots) {
+      response.status(404).json({ error: "Screenshots are not ready." });
+      return;
+    }
+    response.json({ screenshots });
+  } catch (error) {
+    next(error);
+  }
+});
+
 scansRouter.patch("/:id/backlog/:itemId", async (request, response, next) => {
   try {
     const body = updateBacklogSchema.parse(request.body);
@@ -210,6 +225,24 @@ scansRouter.get("/:id/tokens/export", async (request, response, next) => {
       return;
     }
     response.json(exported);
+  } catch (error) {
+    next(error);
+  }
+});
+
+scansRouter.get("/:id/report", async (request, response, next) => {
+  try {
+    const format = request.query.format === "markdown" ? "markdown" : "html";
+    const report = await exportStakeholderReport(request.params.id, format);
+    if (!report) {
+      response.status(404).json({ error: "Report is not ready." });
+      return;
+    }
+    if (format === "html") {
+      response.type("html").send(report);
+      return;
+    }
+    response.type("text/markdown").send(report);
   } catch (error) {
     next(error);
   }

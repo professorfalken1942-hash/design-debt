@@ -28,6 +28,16 @@ export interface ElementSnapshot {
   height?: number;
 }
 
+export interface PageScreenshot {
+  id: string;
+  scanId: string;
+  pageUrl: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+  capturedAt: string;
+}
+
 export interface ScanSummary {
   id: string;
   rootUrl: string;
@@ -129,6 +139,52 @@ export interface BacklogItem {
   route: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PageGroup {
+  id: string;
+  name: string;
+  matchers: string[];
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduledScan {
+  id: string;
+  rootUrl: string;
+  cadence: "weekly" | "biweekly" | "monthly";
+  maxPages: number;
+  enabled: boolean;
+  nextRunAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: "owner" | "designer" | "developer" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceSettings {
+  id: string;
+  teamName: string;
+  defaultPageLimit: number;
+  crawlerMode: "same-origin" | "page-list";
+  namingPreset: "scale" | "semantic" | "css";
+  reviewThreshold: "strict" | "balanced" | "fast";
+  ignoredPaths: string[];
+  teamNotes: string;
+  screenshotEvidence: boolean;
+  reportFormatDefault: "markdown" | "html";
+  updatedAt: string;
+  pageGroups: PageGroup[];
+  schedules: ScheduledScan[];
+  teamMembers: TeamMember[];
 }
 
 export interface TokenProposal {

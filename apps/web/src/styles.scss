@@ -1496,6 +1496,67 @@ textarea {
   font: inherit;
 }
 
+.screenshot-strip {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.screenshot-strip figure,
+.finding-screenshot {
+  background: rgba(7, 17, 14, 0.58);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0;
+  overflow: hidden;
+}
+
+.screenshot-strip img,
+.finding-screenshot img {
+  aspect-ratio: 16 / 10;
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
+
+.screenshot-strip figcaption,
+.finding-screenshot figcaption {
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  padding: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finding-screenshot {
+  margin: 1rem 0;
+}
+
+.settings-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.settings-row {
+  align-items: end;
+  background: rgba(7, 17, 14, 0.42);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(14rem, 1.2fr) minmax(7rem, 0.45fr) auto;
+  padding: 0.9rem;
+}
+
+.settings-row.schedule-row {
+  grid-template-columns: minmax(16rem, 1.4fr) minmax(9rem, 0.6fr) minmax(6rem, 0.45fr) minmax(8rem, 0.5fr) auto;
+}
+
+.settings-row.member-row {
+  grid-template-columns: minmax(10rem, 0.8fr) minmax(14rem, 1fr) minmax(9rem, 0.55fr) auto;
+}
+
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: 1fr;
@@ -1558,6 +1619,12 @@ textarea {
     grid-template-columns: 1fr;
   }
   .backlog-controls {
+    grid-template-columns: 1fr;
+  }
+  .settings-row,
+  .settings-row.schedule-row,
+  .settings-row.member-row {
+    align-items: stretch;
     grid-template-columns: 1fr;
   }
 }

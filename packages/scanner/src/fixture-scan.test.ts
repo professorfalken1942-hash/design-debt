@@ -32,6 +32,8 @@ describe("PlaywrightWebsiteScanner fixture integration", () => {
 
       assert.equal(result.pages.length, 1);
       assert.ok(result.snapshots.length > 5);
+      assert.equal(result.screenshots.length, 1);
+      assert.ok(result.screenshots[0].dataUrl.startsWith("data:image/jpeg;base64,"));
       assert.ok(result.snapshots.some((snapshot) => snapshot.selector === "button.primary"));
       assert.ok(result.snapshots.some((snapshot) => snapshot.borderRadius));
     } finally {

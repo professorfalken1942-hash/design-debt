@@ -15,7 +15,7 @@ import {
 import { demoSnapshots } from "./demo.js";
 
 export { colorSimilarity, normalizeColor, normalizePixelValue } from "./normalize.js";
-export { demoSnapshots } from "./demo.js";
+export { demoScreenshots, demoSnapshots } from "./demo.js";
 export { exportTokensCss, exportTokensJson } from "./token-export.js";
 
 export function analyzeSnapshots(snapshots: ElementSnapshot[]): DesignDebtResults {

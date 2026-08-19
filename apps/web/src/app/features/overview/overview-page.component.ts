@@ -106,7 +106,9 @@ import { ApiService } from "../../core/api.service";
             <p>{{ primaryAction().copy }}</p>
             <div class="dashboard-actions">
               <a class="button primary" [routerLink]="primaryAction().route">{{ primaryAction().cta }}</a>
-              <button class="button secondary" type="button" (click)="downloadStakeholderReport()">Download report</button>
+              <button class="button secondary" type="button" (click)="downloadReport('html')">Download HTML</button>
+              <button class="button secondary" type="button" (click)="downloadReport('markdown')">Download Markdown</button>
+              <button class="button quiet" type="button" (click)="openPrintReport()">Print / PDF</button>
               <button class="button quiet" type="button" (click)="loadLatestComparison()" [disabled]="comparisonLoading()">
                 {{ comparisonLoading() ? "Comparing..." : "Compare latest" }}
               </button>
@@ -173,6 +175,27 @@ import { ApiService } from "../../core/api.service";
           <article class="metric"><span>Button patterns</span><strong>{{ results.metrics.buttonPatterns }}</strong></article>
           <article class="metric"><span>Potential inconsistencies</span><strong>{{ results.metrics.potentialInconsistencies }}</strong></article>
         </section>
+
+        @if (api.screenshots().length) {
+          <section class="section panel section-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Screenshot evidence</p>
+                <h2 style="margin:0;">Captured pages for stakeholder review</h2>
+                <p class="token-rationale" style="margin-top:.45rem;">These images are stored with the scan and included in HTML reports.</p>
+              </div>
+              <span class="badge">{{ api.screenshots().length }} pages</span>
+            </div>
+            <div class="screenshot-strip">
+              @for (screenshot of api.screenshots().slice(0, 4); track screenshot.id) {
+                <figure>
+                  <img [src]="screenshot.dataUrl" [alt]="'Screenshot of ' + screenshot.pageUrl" />
+                  <figcaption>{{ screenshot.pageUrl }}</figcaption>
+                </figure>
+              }
+            </div>
+          </section>
+        }
 
         <section class="section panel section-panel">
           <div class="section-title">
@@ -246,6 +269,12 @@ export class OverviewPageComponent {
   readonly backlogStatuses: BacklogStatus[] = ["open", "accepted", "ignored", "fixed"];
   url = "https://example.com";
   maxPages = 20;
+
+  constructor() {
+    void this.api.loadSettings().then((settings) => {
+      this.maxPages = settings.defaultPageLimit;
+    }).catch(() => undefined);
+  }
 
   workflowSteps() {
     const scan = this.api.activeScan();
@@ -389,16 +418,29 @@ export class OverviewPageComponent {
     }
   }
 
-  downloadStakeholderReport(): void {
-    const blob = new Blob([this.stakeholderReport()], { type: "text/markdown;charset=utf-8" });
+  async downloadReport(format: "markdown" | "html"): Promise<void> {
+    const report = await this.api.reportExport(format);
+    const blob = new Blob([report], {
+      type: format === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `uipen-${this.reportSlug()}-report.md`;
+    link.download = `uipen-${this.reportSlug()}-report.${format === "html" ? "html" : "md"}`;
     document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async openPrintReport(): Promise<void> {
+    const report = await this.api.reportExport("html");
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) return;
+    printWindow.document.write(report);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.setTimeout(() => printWindow.print(), 300);
   }
 
   scanLabel(scan: ScanSummary): string {
@@ -430,44 +472,6 @@ export class OverviewPageComponent {
       .filter((scan) => scan.status === "completed" && scan.id !== active.id)
       .sort((a, b) => new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime());
     return completed.find((scan) => scan.rootUrl === active.rootUrl) ?? completed[0];
-  }
-
-  private stakeholderReport(): string {
-    const scan = this.api.activeScan();
-    const results = this.api.results();
-    const comparison = this.comparison();
-    const backlog = this.backlogItems();
-    const tokens = this.api.tokens();
-    return [
-      "# UIpen Stakeholder Report",
-      "",
-      `Source: ${scan?.rootUrl ?? "No scan selected"}`,
-      `Generated: ${new Date().toISOString()}`,
-      "",
-      "## Summary",
-      "",
-      `- Design Health Score: ${results?.healthScore ?? "Not available"}`,
-      `- Findings: ${results?.findings.length ?? 0}`,
-      `- Included tokens: ${tokens.filter((token) => token.status === "enabled").length}`,
-      `- Token decisions pending: ${tokens.filter((token) => token.status === "needs-review").length}`,
-      "",
-      "## Top Backlog",
-      "",
-      ...(backlog.length
-        ? backlog.slice(0, 8).map((item) => `- [${this.statusLabel(item.status)}] ${item.title} (${item.priority}, ${item.owner || "Unassigned"})`)
-        : ["- No backlog items yet."]),
-      "",
-      "## Highest-Impact Findings",
-      "",
-      ...(results?.findings.slice(0, 6).map((finding) => `- ${finding.title}: ${finding.description}`) ?? ["- No findings available."]),
-      "",
-      "## Before / After",
-      "",
-      comparison
-        ? `${comparison.summary} Score delta: ${comparison.scoreDelta > 0 ? "+" : ""}${comparison.scoreDelta}.`
-        : "No comparison loaded. Use Compare latest on the Overview dashboard before downloading if you want before/after detail.",
-      "",
-    ].join("\n");
   }
 
   private reportSlug(): string {

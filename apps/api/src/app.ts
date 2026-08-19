@@ -2,12 +2,13 @@ import cors from "cors";
 import express from "express";
 import { env } from "./env.js";
 import { scansRouter } from "./routes/scans.js";
+import { settingsRouter } from "./routes/settings.js";
 import { checkDatabaseConnection } from "./services/scan-repository.js";
 
 export const app = express();
 
 app.use(cors({ origin: env.webOrigin }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 
 app.get(["/health", "/api/health"], (_request, response) => {
   response.json({
@@ -42,6 +43,7 @@ app.get(["/health/db", "/api/health/db"], async (_request, response) => {
 });
 
 app.use("/api/scans", scansRouter);
+app.use("/api/settings", settingsRouter);
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   console.error(error);
