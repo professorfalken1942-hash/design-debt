@@ -471,20 +471,23 @@ export async function updateWorkspaceSettings(
   workspaceId = "default",
 ): Promise<WorkspaceSettings> {
   await ensureWorkspaceSettingsRecord(workspaceId);
-  await prisma.workspaceSettings.update({
-    where: { workspaceId },
-    data: {
-      teamName: patch.teamName,
-      defaultPageLimit: patch.defaultPageLimit,
-      crawlerMode: patch.crawlerMode,
-      namingPreset: patch.namingPreset,
-      reviewThreshold: patch.reviewThreshold,
-      ignoredPaths: patch.ignoredPaths as never,
-      teamNotes: patch.teamNotes,
-      screenshotEvidence: patch.screenshotEvidence,
-      reportFormatDefault: patch.reportFormatDefault,
-    },
-  });
+  await prisma.$transaction([
+    ...(patch.teamName ? [prisma.workspace.update({ where: { id: workspaceId }, data: { name: patch.teamName } })] : []),
+    prisma.workspaceSettings.update({
+      where: { workspaceId },
+      data: {
+        teamName: patch.teamName,
+        defaultPageLimit: patch.defaultPageLimit,
+        crawlerMode: patch.crawlerMode,
+        namingPreset: patch.namingPreset,
+        reviewThreshold: patch.reviewThreshold,
+        ignoredPaths: patch.ignoredPaths as never,
+        teamNotes: patch.teamNotes,
+        screenshotEvidence: patch.screenshotEvidence,
+        reportFormatDefault: patch.reportFormatDefault,
+      },
+    }),
+  ]);
   return getWorkspaceSettings(workspaceId);
 }
 
